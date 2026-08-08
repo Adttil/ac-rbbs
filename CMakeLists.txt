@@ -18,7 +18,15 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(crypto12381)
 
+FetchContent_Declare(
+    cxxopts
+    GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
+    GIT_TAG v3.3.1
+    EXCLUDE_FROM_ALL
+)
+FetchContent_MakeAvailable(cxxopts)
+
 add_subdirectory(schemes)
 
 add_executable(benchmark benchmark.cpp)
-target_link_libraries(benchmark PRIVATE schemes)
+target_link_libraries(benchmark PRIVATE schemes cxxopts::cxxopts)

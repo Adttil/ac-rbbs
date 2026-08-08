@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <array>
-#include <charconv>
 #include <chrono>
 #include <concepts>
 #include <cstddef>
@@ -11,9 +10,9 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <vector>
 
+#include <cxxopts.hpp>
 #include <crypto12381/crypto12381.hpp>
 
 #include <schemes.hpp>
@@ -126,41 +125,6 @@ BenchmarkResult benchmark_scheme(const AC& ac, size_t n, std::span<const size_t>
         << " us, verify=" << result.verification_time.count() << " us\n";
 
     return result;
-}
-
-size_t parse_size(std::string_view text, std::string_view name)
-{
-    size_t value{};
-    const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value);
-    if(error != std::errc{} || end != text.data() + text.size())
-    {
-        throw std::invalid_argument{ "invalid value for " + std::string{ name } + ": " + std::string{ text } };
-    }
-    return value;
-}
-
-BenchmarkConfig parse_arguments(int argc, char* argv[])
-{
-    BenchmarkConfig config;
-    if(argc == 1)
-    {
-        return config;
-    }
-    if(argc != 10)
-    {
-        throw std::invalid_argument{ "expected either no arguments or exactly 9 arguments" };
-    }
-
-    config.repetitions = parse_size(argv[1], "repetitions");
-    config.experiment1.n_disclosed = parse_size(argv[2], "experiment_1_disclosed");
-    config.experiment1.first = parse_size(argv[3], "experiment_1_first");
-    config.experiment1.interval = parse_size(argv[4], "experiment_1_interval");
-    config.experiment1.samples = parse_size(argv[5], "experiment_1_samples");
-    config.experiment2.n_attributes = parse_size(argv[6], "experiment_2_total");
-    config.experiment2.first = parse_size(argv[7], "experiment_2_first");
-    config.experiment2.interval = parse_size(argv[8], "experiment_2_interval");
-    config.experiment2.samples = parse_size(argv[9], "experiment_2_samples");
-    return config;
 }
 
 void validate(const BenchmarkConfig& config)
@@ -276,9 +240,38 @@ void run_benchmarks(const BenchmarkConfig& config, const AC&...ac)
 
 int main(int argc, char* argv[])
 {
+    BenchmarkConfig config;
+    cxxopts::Options options{ "benchmark", "Anonymous credential benchmarks" };
+    const auto with_default = [](auto& value)
+    {
+        return cxxopts::value(value)->default_value(std::to_string(value));
+    };
+
+    options.add_options("General")
+        ("r,repeat", "Repetitions per benchmark", with_default(config.repetitions))
+        ("h,help", "Print help");
+
+    options.add_options("Experiment 1")
+        ("exp1-disclosed", "Number of disclosed attributes", with_default(config.experiment1.n_disclosed))
+        ("exp1-start", "First total attribute count", with_default(config.experiment1.first))
+        ("exp1-step", "Sampling interval", with_default(config.experiment1.interval))
+        ("exp1-samples", "Number of samples", with_default(config.experiment1.samples));
+
+    options.add_options("Experiment 2")
+        ("exp2-total", "Fixed total attribute count", with_default(config.experiment2.n_attributes))
+        ("exp2-start", "First disclosed attribute count", with_default(config.experiment2.first))
+        ("exp2-step", "Sampling interval", with_default(config.experiment2.interval))
+        ("exp2-samples", "Number of samples", with_default(config.experiment2.samples));
+
     try
     {
-        const auto config = parse_arguments(argc, argv);
+        const auto arguments = options.parse(argc, argv);
+        if(arguments.count("help") != 0uz)
+        {
+            std::cout << options.help();
+            return 0;
+        }
+
         validate(config);
 
         run_benchmarks(config, ac::rps, ac::bbs, ac::monipoly, ac::our_scheme);
