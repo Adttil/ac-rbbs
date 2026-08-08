@@ -46,13 +46,6 @@ concept anonymous_credential = requires(
     { ac.verify(m, attr, I, pres_info, pk) } -> std::same_as<bool>;
 };
 
-struct BenchmarkResult
-{
-    std::chrono::microseconds redact_time;
-    std::chrono::microseconds pres_time;
-    std::chrono::microseconds verification_time;
-};
-
 struct Experiment1Config
 {
     size_t n_disclosed = 3uz;
@@ -74,6 +67,36 @@ struct BenchmarkConfig
     size_t repetitions = 100uz;
     Experiment1Config experiment1;
     Experiment2Config experiment2;
+};
+
+void validate(const BenchmarkConfig& config)
+{
+    const auto& [repetitions, experiment1, experiment2] = config;
+    if(repetitions == 0uz || experiment1.samples == 0uz || experiment2.samples == 0uz)
+    {
+        throw std::invalid_argument{ "repetitions and sample counts must be positive" };
+    }
+    if(experiment1.first == 0uz || experiment2.n_attributes == 0uz)
+    {
+        throw std::invalid_argument{ "total attribute counts must be positive" };
+    }
+    if(experiment1.n_disclosed > experiment1.first)
+    {
+        throw std::invalid_argument{ "experiment1 disclosed attribute count exceeds its first total attribute count" };
+    }
+
+    const auto experiment2_last = experiment2.first + experiment2.interval * (experiment2.samples - 1uz);
+    if(experiment2_last > experiment2.n_attributes)
+    {
+        throw std::invalid_argument{ "experiment2 disclosed attribute count exceeds its total attribute count" };
+    }
+}
+
+struct BenchmarkResult
+{
+    std::chrono::microseconds redact_time;
+    std::chrono::microseconds pres_time;
+    std::chrono::microseconds verification_time;
 };
 
 template<typename Operation>
@@ -125,30 +148,6 @@ BenchmarkResult benchmark_scheme(const AC& ac, size_t n, std::span<const size_t>
         << " us, verify=" << result.verification_time.count() << " us\n";
 
     return result;
-}
-
-void validate(const BenchmarkConfig& config)
-{
-    const auto& experiment_1 = config.experiment1;
-    const auto& experiment_2 = config.experiment2;
-    if(config.repetitions == 0uz || experiment_1.samples == 0uz || experiment_2.samples == 0uz)
-    {
-        throw std::invalid_argument{ "repetitions and sample counts must be positive" };
-    }
-    if(experiment_1.first == 0uz || experiment_2.n_attributes == 0uz)
-    {
-        throw std::invalid_argument{ "total attribute counts must be positive" };
-    }
-    if(experiment_1.n_disclosed > experiment_1.first)
-    {
-        throw std::invalid_argument{ "experiment 1 disclosed attribute count exceeds its first total attribute count" };
-    }
-
-    const auto experiment_2_last = experiment_2.first + experiment_2.interval * (experiment_2.samples - 1uz);
-    if(experiment_2_last > experiment_2.n_attributes)
-    {
-        throw std::invalid_argument{ "experiment 2 disclosed attribute count exceeds its total attribute count" };
-    }
 }
 
 template<anonymous_credential...AC>
