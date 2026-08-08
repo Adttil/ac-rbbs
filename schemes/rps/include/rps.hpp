@@ -63,6 +63,16 @@ namespace anonymous_credentials
             RandomEngine& random
         );
 
+        static PresInfo pres(
+            std::string_view m,
+            std::span<const serialized_field<Zp>> attr,
+            const Signature& sig,
+            std::span<const size_t> I,
+            const UserSecretKey& usk,
+            const PublicKey& pk,
+            RandomEngine& random
+        );
+
         static RedactCache redact(
             std::span<const serialized_field<Zp>> attr,
             const Signature& sig,

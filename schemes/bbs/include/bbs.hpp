@@ -40,8 +40,6 @@ namespace anonymous_credentials
 
         struct Signature : serialized_field<G1^2, Zp> {};
 
-        struct RedactCache {};
-
         struct PresInfo
         {
             serialized_field<G1^3, Zp^3> fixed_part;
@@ -66,20 +64,11 @@ namespace anonymous_credentials
             RandomEngine& random
         );
 
-        static RedactCache redact(
-            std::span<const serialized_field<Zp>> attr,
-            const Signature& sig,
-            const UserSecretKey& usk,
-            std::span<const size_t> I,
-            const PublicKey& pk
-        );
-
         static PresInfo pres(
             std::string_view m,
             std::span<const serialized_field<Zp>> attr,
             const Signature& sig,
             std::span<const size_t> I,
-            const RedactCache& redact_cache,
             const UserSecretKey& usk,
             const PublicKey& pk,
             RandomEngine& random

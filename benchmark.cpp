@@ -30,7 +30,6 @@ concept anonymous_credential = requires(
     std::span<const size_t> I,
     std::string_view m,
     const typename AC::Signature& sig,
-    const typename AC::RedactCache& redact_cache,
     const typename AC::PresInfo& pres_info
 )
 {
@@ -39,9 +38,25 @@ concept anonymous_credential = requires(
     { ac.user_keygen(pk, random) } -> std::same_as<typename AC::UserKeys>;
     { ac.generate_attributes(pk, n, random) } -> std::same_as<std::vector<crypto12381::serialized_field<crypto12381::Zp>>>;
     { ac.issue(keys, upk, attr, random) } -> std::same_as<typename AC::Signature>;
+    { ac.pres(m, attr, sig, I, usk, pk, random) } -> std::same_as<typename AC::PresInfo>;
+    { ac.verify(m, attr, I, pres_info, pk) } -> std::same_as<bool>;
+};
+
+template<typename AC>
+concept redactable_anonymous_credential = anonymous_credential<AC> && requires(
+    const AC& ac,
+    crypto12381::RandomEngine& random,
+    const typename AC::PublicKey& pk,
+    const typename AC::UserSecretKey& usk,
+    std::span<const crypto12381::serialized_field<crypto12381::Zp>> attr,
+    std::span<const size_t> I,
+    std::string_view m,
+    const typename AC::Signature& sig,
+    const typename AC::RedactCache& redact_cache
+)
+{
     { ac.redact(attr, sig, usk, I, pk) } -> std::same_as<typename AC::RedactCache>;
     { ac.pres(m, attr, sig, I, redact_cache, usk, pk, random) } -> std::same_as<typename AC::PresInfo>;
-    { ac.verify(m, attr, I, pres_info, pk) } -> std::same_as<bool>;
 };
 
 struct Experiment1Config
@@ -100,23 +115,6 @@ void register_scheme_benchmarks(
     const auto prefix = std::string{ experiment } + '/' + std::string{ ac.name() };
     const auto parameters = "/attributes:" + std::to_string(n) + "/disclosed:" + std::to_string(I.size());
 
-    const auto redact_name = prefix + "/redact" + parameters;
-    benchmark::RegisterBenchmark(redact_name.c_str(), [&ac, n, I](benchmark::State& state)
-    {
-        auto random = crypto12381::create_random_engine("seed");
-        const auto keys = ac.keygen(n, random);
-        const auto& [sk, pk] = keys;
-        const auto attr = ac.generate_attributes(pk, n, random);
-        const auto [usk, upk] = ac.user_keygen(pk, random);
-        const auto sig = ac.issue(keys, upk, attr, random);
-
-        for(auto _ : state)
-        {
-            auto redact_cache = ac.redact(attr, sig, usk, I, pk);
-            benchmark::DoNotOptimize(redact_cache);
-        }
-    })->Unit(benchmark::kMicrosecond);
-
     const auto pres_name = prefix + "/pres" + parameters;
     benchmark::RegisterBenchmark(pres_name.c_str(), [&ac, n, I](benchmark::State& state)
     {
@@ -126,15 +124,60 @@ void register_scheme_benchmarks(
         const auto attr = ac.generate_attributes(pk, n, random);
         const auto [usk, upk] = ac.user_keygen(pk, random);
         const auto sig = ac.issue(keys, upk, attr, random);
-        const auto redact_cache = ac.redact(attr, sig, usk, I, pk);
 
         constexpr std::string_view m = "anonymous credential benchmark";
         for(auto _ : state)
         {
-            auto pres_info = ac.pres(m, attr, sig, I, redact_cache, usk, pk, random);
+            auto pres_info = ac.pres(m, attr, sig, I, usk, pk, random);
             benchmark::DoNotOptimize(pres_info);
         }
     })->Unit(benchmark::kMicrosecond);
+
+    if constexpr(redactable_anonymous_credential<AC>)
+    {
+        const auto redact_name = prefix + "/redact" + parameters;
+        benchmark::RegisterBenchmark(redact_name.c_str(), [&ac, n, I](benchmark::State& state)
+        {
+            auto random = crypto12381::create_random_engine("seed");
+            const auto keys = ac.keygen(n, random);
+            const auto& [sk, pk] = keys;
+            const auto attr = ac.generate_attributes(pk, n, random);
+            const auto [usk, upk] = ac.user_keygen(pk, random);
+            const auto sig = ac.issue(keys, upk, attr, random);
+
+            for(auto _ : state)
+            {
+                auto redact_cache = ac.redact(attr, sig, usk, I, pk);
+                benchmark::DoNotOptimize(redact_cache);
+            }
+        })->Unit(benchmark::kMicrosecond);
+
+        const auto pres_with_cache_name = prefix + "/pres_with_cache" + parameters;
+        benchmark::RegisterBenchmark(pres_with_cache_name.c_str(), [&ac, n, I](benchmark::State& state)
+        {
+            auto random = crypto12381::create_random_engine("seed");
+            const auto keys = ac.keygen(n, random);
+            const auto& [sk, pk] = keys;
+            const auto attr = ac.generate_attributes(pk, n, random);
+            const auto [usk, upk] = ac.user_keygen(pk, random);
+            const auto sig = ac.issue(keys, upk, attr, random);
+            const auto redact_cache = ac.redact(attr, sig, usk, I, pk);
+
+            constexpr std::string_view m = "anonymous credential benchmark";
+            const auto pres_info = ac.pres(m, attr, sig, I, redact_cache, usk, pk, random);
+            if(not ac.verify(m, attr, I, pres_info, pk))
+            {
+                state.SkipWithError("verification failed");
+                return;
+            }
+
+            for(auto _ : state)
+            {
+                auto result = ac.pres(m, attr, sig, I, redact_cache, usk, pk, random);
+                benchmark::DoNotOptimize(result);
+            }
+        })->Unit(benchmark::kMicrosecond);
+    }
 
     const auto verify_name = prefix + "/verify" + parameters;
     benchmark::RegisterBenchmark(verify_name.c_str(), [&ac, n, I](benchmark::State& state)
@@ -145,10 +188,9 @@ void register_scheme_benchmarks(
         const auto attr = ac.generate_attributes(pk, n, random);
         const auto [usk, upk] = ac.user_keygen(pk, random);
         const auto sig = ac.issue(keys, upk, attr, random);
-        const auto redact_cache = ac.redact(attr, sig, usk, I, pk);
 
         constexpr std::string_view m = "anonymous credential benchmark";
-        const auto pres_info = ac.pres(m, attr, sig, I, redact_cache, usk, pk, random);
+        const auto pres_info = ac.pres(m, attr, sig, I, usk, pk, random);
         if(not ac.verify(m, attr, I, pres_info, pk))
         {
             state.SkipWithError("verification failed");

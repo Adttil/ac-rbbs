@@ -8,7 +8,6 @@ namespace anonymous_credentials
         std::span<const serialized_field<Zp>> attr,
         const Signature& sig,
         std::span<const size_t> I,
-        const RedactCache&,
         const UserSecretKey& usk,
         const PublicKey& pk,
         RandomEngine& random
