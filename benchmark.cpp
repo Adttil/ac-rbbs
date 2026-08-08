@@ -1,9 +1,6 @@
 #include <algorithm>
-#include <array>
-#include <chrono>
 #include <concepts>
 #include <cstddef>
-#include <fstream>
 #include <iostream>
 #include <numeric>
 #include <span>
@@ -12,6 +9,7 @@
 #include <string_view>
 #include <vector>
 
+#include <benchmark/benchmark.h>
 #include <cxxopts.hpp>
 #include <crypto12381/crypto12381.hpp>
 
@@ -64,17 +62,16 @@ struct Experiment2Config
 
 struct BenchmarkConfig
 {
-    size_t repetitions = 100uz;
     Experiment1Config experiment1;
     Experiment2Config experiment2;
 };
 
 void validate(const BenchmarkConfig& config)
 {
-    const auto& [repetitions, experiment1, experiment2] = config;
-    if(repetitions == 0uz || experiment1.samples == 0uz || experiment2.samples == 0uz)
+    const auto& [experiment1, experiment2] = config;
+    if(experiment1.samples == 0uz || experiment2.samples == 0uz)
     {
-        throw std::invalid_argument{ "repetitions and sample counts must be positive" };
+        throw std::invalid_argument{ "sample counts must be positive" };
     }
     if(experiment1.first == 0uz || experiment2.n_attributes == 0uz)
     {
@@ -92,140 +89,110 @@ void validate(const BenchmarkConfig& config)
     }
 }
 
-struct BenchmarkResult
-{
-    std::chrono::microseconds redact_time;
-    std::chrono::microseconds pres_time;
-    std::chrono::microseconds verification_time;
-};
-
-template<typename Operation>
-decltype(auto) benchmark(size_t repetitions, std::chrono::microseconds& total_time, Operation&& operation)
-{
-    const auto start = std::chrono::steady_clock::now();
-    for(size_t i = 0uz; i < repetitions; ++i)
-    {
-        operation();
-    }
-    total_time = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start);
-    return operation();
-}
-
 template<anonymous_credential AC>
-BenchmarkResult benchmark_scheme(const AC& ac, size_t n, std::span<const size_t> I, size_t repetitions)
+void register_scheme_benchmarks(
+    std::string_view experiment,
+    const AC& ac,
+    size_t n,
+    std::span<const size_t> I
+)
 {
-    BenchmarkResult result;
-    auto random = crypto12381::create_random_engine("seed");
-    const auto keys = ac.keygen(n, random);
-    const auto& [sk, pk] = keys;
-    const auto attr = ac.generate_attributes(pk, n, random);
-    const auto [usk, upk] = ac.user_keygen(pk, random);
-    const auto sig = ac.issue(keys, upk, attr, random);
+    const auto prefix = std::string{ experiment } + '/' + std::string{ ac.name() };
+    const auto parameters = "/attributes:" + std::to_string(n) + "/disclosed:" + std::to_string(I.size());
 
-    const auto redact_cache = benchmark(repetitions, result.redact_time, [&]
+    const auto redact_name = prefix + "/redact" + parameters;
+    benchmark::RegisterBenchmark(redact_name.c_str(), [&ac, n, I](benchmark::State& state)
     {
-        return ac.redact(attr, sig, usk, I, pk);
-    });
+        auto random = crypto12381::create_random_engine("seed");
+        const auto keys = ac.keygen(n, random);
+        const auto& [sk, pk] = keys;
+        const auto attr = ac.generate_attributes(pk, n, random);
+        const auto [usk, upk] = ac.user_keygen(pk, random);
+        const auto sig = ac.issue(keys, upk, attr, random);
 
-    constexpr std::string_view m = "anonymous credential benchmark";
-    const auto pres_info = benchmark(repetitions, result.pres_time, [&]
+        for(auto _ : state)
+        {
+            auto redact_cache = ac.redact(attr, sig, usk, I, pk);
+            benchmark::DoNotOptimize(redact_cache);
+        }
+    })->Unit(benchmark::kMicrosecond);
+
+    const auto pres_name = prefix + "/pres" + parameters;
+    benchmark::RegisterBenchmark(pres_name.c_str(), [&ac, n, I](benchmark::State& state)
     {
-        return ac.pres(m, attr, sig, I, redact_cache, usk, pk, random);
-    });
+        auto random = crypto12381::create_random_engine("seed");
+        const auto keys = ac.keygen(n, random);
+        const auto& [sk, pk] = keys;
+        const auto attr = ac.generate_attributes(pk, n, random);
+        const auto [usk, upk] = ac.user_keygen(pk, random);
+        const auto sig = ac.issue(keys, upk, attr, random);
+        const auto redact_cache = ac.redact(attr, sig, usk, I, pk);
 
-    const bool valid = benchmark(repetitions, result.verification_time, [&]
+        constexpr std::string_view m = "anonymous credential benchmark";
+        for(auto _ : state)
+        {
+            auto pres_info = ac.pres(m, attr, sig, I, redact_cache, usk, pk, random);
+            benchmark::DoNotOptimize(pres_info);
+        }
+    })->Unit(benchmark::kMicrosecond);
+
+    const auto verify_name = prefix + "/verify" + parameters;
+    benchmark::RegisterBenchmark(verify_name.c_str(), [&ac, n, I](benchmark::State& state)
     {
-        return ac.verify(m, attr, I, pres_info, pk);
-    });
-    if(not valid)
-    {
-        throw std::runtime_error{ std::string{ ac.name() } + " verification failed" };
-    }
+        auto random = crypto12381::create_random_engine("seed");
+        const auto keys = ac.keygen(n, random);
+        const auto& [sk, pk] = keys;
+        const auto attr = ac.generate_attributes(pk, n, random);
+        const auto [usk, upk] = ac.user_keygen(pk, random);
+        const auto sig = ac.issue(keys, upk, attr, random);
+        const auto redact_cache = ac.redact(attr, sig, usk, I, pk);
 
-    std::cout << "  " << ac.name()
-        << ": redact=" << result.redact_time.count()
-        << " us, pres=" << result.pres_time.count()
-        << " us, verify=" << result.verification_time.count() << " us\n";
+        constexpr std::string_view m = "anonymous credential benchmark";
+        const auto pres_info = ac.pres(m, attr, sig, I, redact_cache, usk, pk, random);
+        if(not ac.verify(m, attr, I, pres_info, pk))
+        {
+            state.SkipWithError("verification failed");
+            return;
+        }
 
-    return result;
+        for(auto _ : state)
+        {
+            auto valid = ac.verify(m, attr, I, pres_info, pk);
+            benchmark::DoNotOptimize(valid);
+        }
+    })->Unit(benchmark::kMicrosecond);
 }
 
 template<anonymous_credential...AC>
-void run_experiment_1(const BenchmarkConfig& config, std::span<const size_t> indexes, const AC&...ac)
+void register_experiment_1(const BenchmarkConfig& config, std::span<const size_t> indexes, const AC&...ac)
 {
-    std::ofstream output{ "bench_result.csv" };
-    if(not output)
-    {
-        throw std::runtime_error{ "failed to open output file: bench_result.csv" };
-    }
-
     const auto& experiment = config.experiment1;
-    output << "total_attributes";
-    ((output << ',' << ac.name() << "_redact"
-        << ',' << ac.name() << "_pres"
-        << ',' << ac.name() << "_verify"), ...);
-    output << '\n';
     const auto disclosed_indexes = indexes.first(experiment.n_disclosed);
 
     for(size_t sample = 0uz; sample < experiment.samples; ++sample)
     {
         const auto attribute_count = experiment.first + experiment.interval * sample;
-        std::cout << "experiment 1: total attributes=" << attribute_count
-            << ", disclosed attributes=" << disclosed_indexes.size() << '\n';
-        const std::array bench_results{
-            benchmark_scheme(ac, attribute_count, disclosed_indexes, config.repetitions)... 
-        };
-        output << attribute_count;
-        for(const auto& result : bench_results)
-        {
-            output << ',' << result.redact_time.count()
-                << ',' << result.pres_time.count()
-                << ',' << result.verification_time.count();
-        }
-        output << '\n';
+        (register_scheme_benchmarks("experiment1", ac, attribute_count, disclosed_indexes), ...);
     }
 }
 
 template<anonymous_credential...AC>
-void run_experiment_2(const BenchmarkConfig& config, std::span<const size_t> indexes, const AC&...ac)
+void register_experiment_2(const BenchmarkConfig& config, std::span<const size_t> indexes, const AC&...ac)
 {
-    std::ofstream output{ "bench_disclosed_result.csv" };
-    if(not output)
-    {
-        throw std::runtime_error{ "failed to open output file: bench_disclosed_result.csv" };
-    }
-
     const auto& experiment = config.experiment2;
-    output << "disclosed_attributes";
-    ((output << ',' << ac.name() << "_redact"
-        << ',' << ac.name() << "_pres"
-        << ',' << ac.name() << "_verify"), ...);
-    output << '\n';
 
     for(size_t sample = 0uz; sample < experiment.samples; ++sample)
     {
         const auto disclosed_count = experiment.first + experiment.interval * sample;
         const auto disclosed_indexes = indexes.first(disclosed_count);
-        std::cout << "experiment 2: total attributes=" << experiment.n_attributes
-            << ", disclosed attributes=" << disclosed_count << '\n';
-        const std::array bench_results{ 
-            benchmark_scheme(ac, experiment.n_attributes, disclosed_indexes, config.repetitions)... 
-        };
-        output << disclosed_count;
-        for(const auto& result : bench_results)
-        {
-            output << ',' << result.redact_time.count()
-                << ',' << result.pres_time.count()
-                << ',' << result.verification_time.count();
-        }
-        output << '\n';
+        (register_scheme_benchmarks("experiment2", ac, experiment.n_attributes, disclosed_indexes), ...);
     }
 }
 
 template<anonymous_credential...AC>
 void run_benchmarks(const BenchmarkConfig& config, const AC&...ac)
 {
-    const auto& [_, config1, config2] = config;
+    const auto& [config1, config2] = config;
     const auto n_attributes_max = std::max(
         config1.first + config1.interval * (config1.samples - 1uz), 
         config2.n_attributes
@@ -233,13 +200,13 @@ void run_benchmarks(const BenchmarkConfig& config, const AC&...ac)
     std::vector<size_t> indexes(n_attributes_max);
     std::iota(indexes.begin(), indexes.end(), 0uz);
 
-    run_experiment_1(config, indexes, ac...);
-    run_experiment_2(config, indexes, ac...);
+    register_experiment_1(config, indexes, ac...);
+    register_experiment_2(config, indexes, ac...);
+    benchmark::RunSpecifiedBenchmarks();
 }
 
-int main(int argc, char* argv[])
+cxxopts::Options make_options(BenchmarkConfig& config)
 {
-    BenchmarkConfig config;
     cxxopts::Options options{ "benchmark", "Anonymous credential benchmarks" };
     const auto with_default = [](auto& value)
     {
@@ -247,8 +214,7 @@ int main(int argc, char* argv[])
     };
 
     options.add_options("General")
-        ("r,repeat", "Repetitions per benchmark", with_default(config.repetitions))
-        ("h,help", "Print help");
+        ("help", "Print help");
 
     options.add_options("Experiment 1")
         ("exp1-disclosed", "Number of disclosed attributes", with_default(config.experiment1.n_disclosed))
@@ -262,22 +228,35 @@ int main(int argc, char* argv[])
         ("exp2-step", "Sampling interval", with_default(config.experiment2.interval))
         ("exp2-samples", "Number of samples", with_default(config.experiment2.samples));
 
+    return options;
+}
+
+int main(int argc, char* argv[])
+{
+    benchmark::MaybeReenterWithoutASLR(argc, argv);
+    benchmark::Initialize(&argc, argv, []()
+    {
+        BenchmarkConfig config;
+        const auto options = make_options(config);
+        std::cout << options.help() << '\n';
+        benchmark::PrintDefaultHelp();
+    });
+
     try
     {
-        const auto arguments = options.parse(argc, argv);
-        if(arguments.count("help") != 0uz)
-        {
-            std::cout << options.help();
-            return 0;
-        }
+        BenchmarkConfig config;
+        auto options = make_options(config);
+        options.parse(argc, argv);
 
         validate(config);
 
         run_benchmarks(config, ac::rps, ac::bbs, ac::monipoly, ac::our_scheme);
+        benchmark::Shutdown();
         return 0;
     }
     catch(const std::exception& error)
     {
+        benchmark::Shutdown();
         std::cerr << "error: " << error.what() << '\n';
         return 1;
     }

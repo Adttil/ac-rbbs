@@ -26,7 +26,20 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(cxxopts)
 
+set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "Build Google Benchmark tests" FORCE)
+set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "Build Google Benchmark GoogleTest tests" FORCE)
+set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "Install Google Benchmark" FORCE)
+set(BENCHMARK_ENABLE_WERROR OFF CACHE BOOL "Treat Google Benchmark warnings as errors" FORCE)
+FetchContent_Declare(
+    google_benchmark
+    GIT_REPOSITORY https://github.com/google/benchmark.git
+    GIT_TAG v1.9.5
+    EXCLUDE_FROM_ALL
+)
+FetchContent_MakeAvailable(google_benchmark)
+
 add_subdirectory(schemes)
 
-add_executable(benchmark benchmark.cpp)
-target_link_libraries(benchmark PRIVATE schemes cxxopts::cxxopts)
+add_executable(benchmark_runner benchmark.cpp)
+set_target_properties(benchmark_runner PROPERTIES OUTPUT_NAME benchmark)
+target_link_libraries(benchmark_runner PRIVATE schemes cxxopts::cxxopts benchmark::benchmark)
