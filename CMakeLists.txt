@@ -20,5 +20,5 @@ FetchContent_MakeAvailable(crypto12381)
 
 add_subdirectory(schemes)
 
-add_executable(bench_mark bench_mark.cpp)
-target_link_libraries(bench_mark PRIVATE schemes)
+add_executable(benchmark benchmark.cpp)
+target_link_libraries(benchmark PRIVATE schemes)
