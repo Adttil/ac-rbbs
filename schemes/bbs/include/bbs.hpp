@@ -48,7 +48,7 @@ namespace anonymous_credentials
 
         static constexpr std::string_view name()
         {
-            return "bbs";
+            return "BBS";
         }
 
         static Keys keygen(size_t n, RandomEngine& random);

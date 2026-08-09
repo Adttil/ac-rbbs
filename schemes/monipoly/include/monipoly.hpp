@@ -47,7 +47,7 @@ namespace anonymous_credentials
 
         static constexpr std::string_view name()
         {
-            return "monipoly";
+            return "MoniPoly";
         }
 
         static Keys keygen(size_t n, RandomEngine& random);
