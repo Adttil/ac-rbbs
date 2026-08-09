@@ -18,6 +18,7 @@ namespace anonymous_credentials
         }
 
         RPS::PresProof pres_impl(
+            std::string_view m,
             const auto& a,
             std::span<const size_t> indexes,
             const auto& h,
@@ -65,7 +66,7 @@ namespace anonymous_credentials
 
             auto C = sigma1_^z;
             auto C0 = sigma1_^rho;
-            auto c0 = hash(sigma1_, C, C0).to(Zp);
+            auto c0 = hash(m, sigma1_, sigma2_, sigma3_, C, tilde_sigma_, C0).to(Zp);
             auto s0 = rho + -c0*z;
 
             return serialize(sigma1_, sigma2_, sigma3_, C, tilde_sigma_, c0, s0);
@@ -77,7 +78,7 @@ namespace anonymous_credentials
         std::span<const serialized_field<Zp>> attr,
         const Signature& sig,
         std::span<const size_t> indexes,
-        std::string_view,
+        std::string_view m,
         const PublicKey& pk,
         RandomEngine& random
     )
@@ -90,7 +91,7 @@ namespace anonymous_credentials
         auto z = parse<Zp>(usk);
         auto tilde_H = preprocess_impl(a, tilde_M, indexes, tilde_Y);
 
-        return pres_impl(a, indexes, h, sigma, tilde_H, tilde_g, Y, z, random);
+        return pres_impl(m, a, indexes, h, sigma, tilde_H, tilde_g, Y, z, random);
     }
 
     RPS::PresCache RPS::preprocess(
@@ -114,7 +115,7 @@ namespace anonymous_credentials
         const Signature& sig,
         std::span<const size_t> indexes,
         const PresCache& cache,
-        std::string_view,
+        std::string_view m,
         const PublicKey& pk,
         RandomEngine& random
     )
@@ -126,6 +127,6 @@ namespace anonymous_credentials
         auto Y = parse<G1>(pk.Y) | materialize;
         auto z = parse<Zp>(usk);
 
-        return pres_impl(a, indexes, h, sigma, tilde_H, tilde_g, Y, z, random);
+        return pres_impl(m, a, indexes, h, sigma, tilde_H, tilde_g, Y, z, random);
     }
 }
