@@ -4,10 +4,10 @@
 namespace anonymous_credentials
 {
     bool RPS::verify(
-        std::string_view,
         std::span<const serialized_field<Zp>> attr,
         std::span<const size_t> indexes,
-        const PresInfo& pres,
+        std::string_view,
+        const PresProof& proof,
         const PublicKey& pk
     )
     {
@@ -17,7 +17,7 @@ namespace anonymous_credentials
         auto a = parse<Zp>(attr);
         const size_t n = a.size();
         auto I = indexes | algebraic;
-        auto [sigma1_, sigma2_, sigma3_, C, tilde_sigma_, c0, s0] = parse<G1^4|G2|Zp^2>(pres);
+        auto [sigma1_, sigma2_, sigma3_, C, tilde_sigma_, c0, s0] = parse<G1^4|G2|Zp^2>(proof);
 
         auto C0 = (sigma1_^s0) * (C^c0);
         if(c0 != hash(sigma1_, C, C0).to(Zp))

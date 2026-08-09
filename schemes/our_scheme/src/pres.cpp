@@ -8,7 +8,7 @@ namespace anonymous_credentials
 {
     namespace
     {
-        auto redact_impl(
+        auto preprocess_impl(
             const auto& h,
             const auto& u,
             const auto& Y,
@@ -48,7 +48,7 @@ namespace anonymous_credentials
             return std::tuple{ C_I, C_J, B, D };
         }
 
-        OurScheme::PresInfo pres_impl(
+        OurScheme::PresProof pres_impl(
             std::string_view m,
             const auto& A,
             const auto& w,
@@ -79,12 +79,12 @@ namespace anonymous_credentials
         }
     }
 
-    OurScheme::PresInfo OurScheme::pres(
-        std::string_view m,
+    OurScheme::PresProof OurScheme::pres(
+        const UserSecretKey& usk,
         std::span<const serialized_field<Zp>> attr,
         const Signature& sig,
         std::span<const size_t> indexes,
-        const UserSecretKey& usk,
+        std::string_view m,
         const PublicKey& pk,
         RandomEngine& random
     )
@@ -94,15 +94,15 @@ namespace anonymous_credentials
         auto a = parse<Zp>(attr) | materialize;
         auto [A, C, w] = parse<G1^2|Zp>(sig);
         auto z = parse<Zp>(usk);
-        auto [C_I, C_J, B, D] = redact_impl(h, u, Y, a, A, C, w, z, indexes);
+        auto [C_I, C_J, B, D] = preprocess_impl(h, u, Y, a, A, C, w, z, indexes);
 
         return pres_impl(m, A, w, z, C_I, C_J, B, D, u, random);
     }
 
-    OurScheme::RedactCache OurScheme::redact(
+    OurScheme::PresCache OurScheme::preprocess(
+        const UserSecretKey& usk,
         std::span<const serialized_field<Zp>> attr,
         const Signature& sig,
-        const UserSecretKey& usk,
         std::span<const size_t> indexes,
         const PublicKey& pk
     )
@@ -112,24 +112,24 @@ namespace anonymous_credentials
         auto a = parse<Zp>(attr) | materialize;
         auto [A, C, w] = parse<G1^2|Zp>(sig);
         auto z = parse<Zp>(usk);
-        auto [C_I, C_J, B, D] = redact_impl(h, u, Y, a, A, C, w, z, indexes);
+        auto [C_I, C_J, B, D] = preprocess_impl(h, u, Y, a, A, C, w, z, indexes);
         return serialize(C_I, C_J, B, D);
     }
 
-    OurScheme::PresInfo OurScheme::pres(
-        std::string_view m,
+    OurScheme::PresProof OurScheme::pres(
+        const UserSecretKey& usk,
         std::span<const serialized_field<Zp>>,
         const Signature& sig,
         std::span<const size_t>,
-        const RedactCache& redact_cache,
-        const UserSecretKey& usk,
+        const PresCache& cache,
+        std::string_view m,
         const PublicKey& pk,
         RandomEngine& random
     )
     {
         auto [A, C, w] = parse<G1^2|Zp>(sig);
         auto z = parse<Zp>(usk);
-        auto [C_I, C_J, B, D] = parse<G1^4>(redact_cache);
+        auto [C_I, C_J, B, D] = parse<G1^4>(cache);
         auto [h, u, tilde_g, tilde_X] = parse<G1^2|G2^2>(pk.fixed_part);
 
         return pres_impl(m, A, w, z, C_I, C_J, B, D, u, random);

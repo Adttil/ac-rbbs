@@ -4,10 +4,10 @@
 namespace anonymous_credentials
 {
     bool OurScheme::verify(
-        std::string_view m,
         std::span<const serialized_field<Zp>> attr,
         std::span<const size_t> indexes,
-        const PresInfo& pres,
+        std::string_view m,
+        const PresProof& proof,
         const PublicKey& pk
     )
     {
@@ -17,7 +17,7 @@ namespace anonymous_credentials
         auto a = parse<Zp>(attr);
         const size_t n = a.size();
         auto I = indexes | algebraic;
-        auto [A_, B_, C_J_, D_, U, s_r, s_w, s_z] = parse<G1^5|Zp^3>(pres);
+        auto [A_, B_, C_J_, D_, U, s_r, s_w, s_z] = parse<G1^5|Zp^3>(proof);
 
         auto c = hash(m, A_, B_, C_J_, D_, U).to(Zp);
         auto C_I = h * Π[i.in(I)](Y[n + i + 2uz]^a[i]);

@@ -30,7 +30,7 @@ concept anonymous_credential = requires(
     std::span<const size_t> I,
     std::string_view m,
     const typename AC::Signature& sig,
-    const typename AC::PresInfo& pres_info
+    const typename AC::PresProof& proof
 )
 {
     { ac.name() } -> std::same_as<std::string_view>;
@@ -38,12 +38,12 @@ concept anonymous_credential = requires(
     { ac.user_keygen(pk, random) } -> std::same_as<typename AC::UserKeys>;
     { ac.generate_attributes(pk, n, random) } -> std::same_as<std::vector<crypto12381::serialized_field<crypto12381::Zp>>>;
     { ac.issue(keys, upk, attr, random) } -> std::same_as<typename AC::Signature>;
-    { ac.pres(m, attr, sig, I, usk, pk, random) } -> std::same_as<typename AC::PresInfo>;
-    { ac.verify(m, attr, I, pres_info, pk) } -> std::same_as<bool>;
+    { ac.pres(usk, attr, sig, I, m, pk, random) } -> std::same_as<typename AC::PresProof>;
+    { ac.verify(attr, I, m, proof, pk) } -> std::same_as<bool>;
 };
 
 template<typename AC>
-concept redactable_anonymous_credential = anonymous_credential<AC> && requires(
+concept cacheable_anonymous_credential = anonymous_credential<AC> && requires(
     const AC& ac,
     crypto12381::RandomEngine& random,
     const typename AC::PublicKey& pk,
@@ -52,11 +52,11 @@ concept redactable_anonymous_credential = anonymous_credential<AC> && requires(
     std::span<const size_t> I,
     std::string_view m,
     const typename AC::Signature& sig,
-    const typename AC::RedactCache& redact_cache
+    const typename AC::PresCache& cache
 )
 {
-    { ac.redact(attr, sig, usk, I, pk) } -> std::same_as<typename AC::RedactCache>;
-    { ac.pres(m, attr, sig, I, redact_cache, usk, pk, random) } -> std::same_as<typename AC::PresInfo>;
+    { ac.preprocess(usk, attr, sig, I, pk) } -> std::same_as<typename AC::PresCache>;
+    { ac.pres(usk, attr, sig, I, cache, m, pk, random) } -> std::same_as<typename AC::PresProof>;
 };
 
 struct Experiment1Config
@@ -128,15 +128,15 @@ void register_scheme_benchmarks(
         constexpr std::string_view m = "anonymous credential benchmark";
         for(auto _ : state)
         {
-            auto pres_info = ac.pres(m, attr, sig, I, usk, pk, random);
-            benchmark::DoNotOptimize(pres_info);
+            auto proof = ac.pres(usk, attr, sig, I, m, pk, random);
+            benchmark::DoNotOptimize(proof);
         }
     })->Unit(benchmark::kMicrosecond);
 
-    if constexpr(redactable_anonymous_credential<AC>)
+    if constexpr(cacheable_anonymous_credential<AC>)
     {
-        const auto redact_name = prefix + "/redact" + parameters;
-        benchmark::RegisterBenchmark(redact_name.c_str(), [&ac, n, I](benchmark::State& state)
+        const auto preprocess_name = prefix + "/preprocess" + parameters;
+        benchmark::RegisterBenchmark(preprocess_name.c_str(), [&ac, n, I](benchmark::State& state)
         {
             auto random = crypto12381::create_random_engine("seed");
             const auto keys = ac.keygen(n, random);
@@ -147,8 +147,8 @@ void register_scheme_benchmarks(
 
             for(auto _ : state)
             {
-                auto redact_cache = ac.redact(attr, sig, usk, I, pk);
-                benchmark::DoNotOptimize(redact_cache);
+                auto cache = ac.preprocess(usk, attr, sig, I, pk);
+                benchmark::DoNotOptimize(cache);
             }
         })->Unit(benchmark::kMicrosecond);
 
@@ -161,11 +161,11 @@ void register_scheme_benchmarks(
             const auto attr = ac.generate_attributes(pk, n, random);
             const auto [usk, upk] = ac.user_keygen(pk, random);
             const auto sig = ac.issue(keys, upk, attr, random);
-            const auto redact_cache = ac.redact(attr, sig, usk, I, pk);
+            const auto cache = ac.preprocess(usk, attr, sig, I, pk);
 
             constexpr std::string_view m = "anonymous credential benchmark";
-            const auto pres_info = ac.pres(m, attr, sig, I, redact_cache, usk, pk, random);
-            if(not ac.verify(m, attr, I, pres_info, pk))
+            const auto proof = ac.pres(usk, attr, sig, I, cache, m, pk, random);
+            if(not ac.verify(attr, I, m, proof, pk))
             {
                 state.SkipWithError("verification failed");
                 return;
@@ -173,7 +173,7 @@ void register_scheme_benchmarks(
 
             for(auto _ : state)
             {
-                auto result = ac.pres(m, attr, sig, I, redact_cache, usk, pk, random);
+                auto result = ac.pres(usk, attr, sig, I, cache, m, pk, random);
                 benchmark::DoNotOptimize(result);
             }
         })->Unit(benchmark::kMicrosecond);
@@ -190,8 +190,8 @@ void register_scheme_benchmarks(
         const auto sig = ac.issue(keys, upk, attr, random);
 
         constexpr std::string_view m = "anonymous credential benchmark";
-        const auto pres_info = ac.pres(m, attr, sig, I, usk, pk, random);
-        if(not ac.verify(m, attr, I, pres_info, pk))
+        const auto proof = ac.pres(usk, attr, sig, I, m, pk, random);
+        if(not ac.verify(attr, I, m, proof, pk))
         {
             state.SkipWithError("verification failed");
             return;
@@ -199,7 +199,7 @@ void register_scheme_benchmarks(
 
         for(auto _ : state)
         {
-            auto valid = ac.verify(m, attr, I, pres_info, pk);
+            auto valid = ac.verify(attr, I, m, proof, pk);
             benchmark::DoNotOptimize(valid);
         }
     })->Unit(benchmark::kMicrosecond);

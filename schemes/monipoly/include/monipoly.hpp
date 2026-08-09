@@ -41,9 +41,9 @@ namespace anonymous_credentials
 
         struct Signature : serialized_field<G1, Zp^3> {};
 
-        struct RedactCache : serialized_field<G1> {};
+        struct PresCache : serialized_field<G1> {};
 
-        struct PresInfo : serialized_field<G1^6, Zp^5> {};
+        struct PresProof : serialized_field<G1^6, Zp^5> {};
 
         static constexpr std::string_view name()
         {
@@ -63,40 +63,40 @@ namespace anonymous_credentials
             RandomEngine& random
         );
 
-        static PresInfo pres(
-            std::string_view m,
+        static PresProof pres(
+            const UserSecretKey& usk,
             std::span<const serialized_field<Zp>> attr,
             const Signature& sig,
             std::span<const size_t> I,
-            const UserSecretKey& usk,
+            std::string_view m,
             const PublicKey& pk,
             RandomEngine& random
         );
 
-        static RedactCache redact(
+        static PresCache preprocess(
+            const UserSecretKey& usk,
             std::span<const serialized_field<Zp>> attr,
             const Signature& sig,
-            const UserSecretKey& usk,
             std::span<const size_t> I,
             const PublicKey& pk
         );
 
-        static PresInfo pres(
-            std::string_view m,
+        static PresProof pres(
+            const UserSecretKey& usk,
             std::span<const serialized_field<Zp>> attr,
             const Signature& sig,
             std::span<const size_t> I,
-            const RedactCache& redact_cache,
-            const UserSecretKey& usk,
+            const PresCache& cache,
+            std::string_view m,
             const PublicKey& pk,
             RandomEngine& random
         );
 
         static bool verify(
-            std::string_view m,
             std::span<const serialized_field<Zp>> attr,
             std::span<const size_t> I,
-            const PresInfo& pres,
+            std::string_view m,
+            const PresProof& proof,
             const PublicKey& pk
         );
     };

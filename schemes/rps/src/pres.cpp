@@ -7,7 +7,7 @@ namespace anonymous_credentials
 {
     namespace
     {
-        auto redact_impl(
+        auto preprocess_impl(
             const auto& a,
             const auto& tilde_M,
             std::span<const size_t> I,
@@ -17,7 +17,7 @@ namespace anonymous_credentials
             return tilde_M / Π[i.in(I)](tilde_Y[i]^a[i]);
         }
 
-        RPS::PresInfo pres_impl(
+        RPS::PresProof pres_impl(
             const auto& a,
             std::span<const size_t> indexes,
             const auto& h,
@@ -72,12 +72,12 @@ namespace anonymous_credentials
         }
     }
 
-    RPS::PresInfo RPS::pres(
-        std::string_view,
+    RPS::PresProof RPS::pres(
+        const UserSecretKey& usk,
         std::span<const serialized_field<Zp>> attr,
         const Signature& sig,
         std::span<const size_t> indexes,
-        const UserSecretKey& usk,
+        std::string_view,
         const PublicKey& pk,
         RandomEngine& random
     )
@@ -88,15 +88,15 @@ namespace anonymous_credentials
         auto Y = parse<G1>(pk.Y) | materialize;
         auto tilde_Y = parse<G2>(pk.tilde_Y);
         auto z = parse<Zp>(usk);
-        auto tilde_H = redact_impl(a, tilde_M, indexes, tilde_Y);
+        auto tilde_H = preprocess_impl(a, tilde_M, indexes, tilde_Y);
 
         return pres_impl(a, indexes, h, sigma, tilde_H, tilde_g, Y, z, random);
     }
 
-    RPS::RedactCache RPS::redact(
+    RPS::PresCache RPS::preprocess(
+        const UserSecretKey&,
         std::span<const serialized_field<Zp>> attr,
         const Signature& sig,
-        const UserSecretKey&,
         std::span<const size_t> I,
         const PublicKey& pk
     )
@@ -104,24 +104,24 @@ namespace anonymous_credentials
         auto a = parse<Zp>(attr);
         auto [h, sigma, tilde_M] = parse<G1^2|G2>(sig);
         auto tilde_Y = parse<G2>(pk.tilde_Y);
-        auto tilde_H = redact_impl(a, tilde_M, I, tilde_Y);
+        auto tilde_H = preprocess_impl(a, tilde_M, I, tilde_Y);
         return serialize(tilde_H);
     }
 
-    RPS::PresInfo RPS::pres(
-        std::string_view,
+    RPS::PresProof RPS::pres(
+        const UserSecretKey& usk,
         std::span<const serialized_field<Zp>> attr,
         const Signature& sig,
         std::span<const size_t> indexes,
-        const RedactCache& redact_cache,
-        const UserSecretKey& usk,
+        const PresCache& cache,
+        std::string_view,
         const PublicKey& pk,
         RandomEngine& random
     )
     {
         auto a = parse<Zp>(attr) | materialize;
         auto [h, sigma, tilde_M] = parse<G1^2|G2>(sig);
-        auto tilde_H = parse<G2>(redact_cache);
+        auto tilde_H = parse<G2>(cache);
         auto [g, tilde_g, tilde_X] = parse<G1|G2^2>(pk.fixed_part);
         auto Y = parse<G1>(pk.Y) | materialize;
         auto z = parse<Zp>(usk);

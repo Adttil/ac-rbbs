@@ -40,7 +40,7 @@ namespace anonymous_credentials
 
         struct Signature : serialized_field<G1^2, Zp> {};
 
-        struct PresInfo
+        struct PresProof
         {
             serialized_field<G1^3, Zp^3> fixed_part;
             std::vector<serialized_field<Zp>> u;
@@ -64,21 +64,21 @@ namespace anonymous_credentials
             RandomEngine& random
         );
 
-        static PresInfo pres(
-            std::string_view m,
+        static PresProof pres(
+            const UserSecretKey& usk,
             std::span<const serialized_field<Zp>> attr,
             const Signature& sig,
             std::span<const size_t> I,
-            const UserSecretKey& usk,
+            std::string_view m,
             const PublicKey& pk,
             RandomEngine& random
         );
 
         static bool verify(
-            std::string_view m,
             std::span<const serialized_field<Zp>> attr,
             std::span<const size_t> I,
-            const PresInfo& pres,
+            std::string_view m,
+            const PresProof& proof,
             const PublicKey& pk
         );
     };

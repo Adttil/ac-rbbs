@@ -3,12 +3,12 @@
 
 namespace anonymous_credentials
 {
-    BBS::PresInfo BBS::pres(
-        std::string_view m,
+    BBS::PresProof BBS::pres(
+        const UserSecretKey& usk,
         std::span<const serialized_field<Zp>> attr,
         const Signature& sig,
         std::span<const size_t> I,
-        const UserSecretKey& usk,
+        std::string_view m,
         const PublicKey& pk,
         RandomEngine& random
     )

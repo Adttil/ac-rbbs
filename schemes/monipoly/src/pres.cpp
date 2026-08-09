@@ -34,7 +34,7 @@ namespace anonymous_credentials
             );
         }
 
-        auto redact_impl(
+        auto preprocess_impl(
             const auto& a,
             const auto& o,
             std::span<const size_t> I,
@@ -45,7 +45,7 @@ namespace anonymous_credentials
             return Π[k.size()](A[i]^k[i]);
         }
 
-        MoniPoly::PresInfo pres_impl(
+        MoniPoly::PresProof pres_impl(
             std::string_view m,
             const auto& a,
             std::span<const size_t> I,
@@ -84,12 +84,12 @@ namespace anonymous_credentials
         }
     }
 
-    MoniPoly::PresInfo MoniPoly::pres(
-        std::string_view m,
+    MoniPoly::PresProof MoniPoly::pres(
+        const UserSecretKey& usk,
         std::span<const serialized_field<Zp>> attr,
         const Signature& sig,
         std::span<const size_t> I,
-        const UserSecretKey& usk,
+        std::string_view m,
         const PublicKey& pk,
         RandomEngine& random
     )
@@ -98,16 +98,16 @@ namespace anonymous_credentials
         auto a = parse<Zp>(attr);
         auto z = parse<Zp>(usk);
         auto A = parse<G1>(pk.a);
-        auto W0 = redact_impl(a, o, I, A);
+        auto W0 = preprocess_impl(a, o, I, A);
         auto [b, c, u, tiled_g, tiled_X] = parse<G1^3|G2^2>(pk.fixed_part);
 
         return pres_impl(m, a, I, v, t, s, W0, z, b, c, u, pk.fixed_part, random);
     }
 
-    MoniPoly::RedactCache MoniPoly::redact(
+    MoniPoly::PresCache MoniPoly::preprocess(
+        const UserSecretKey&,
         std::span<const serialized_field<Zp>> attr,
         const Signature& sig,
-        const UserSecretKey&,
         std::span<const size_t> I,
         const PublicKey& pk
     )
@@ -115,17 +115,17 @@ namespace anonymous_credentials
         auto [v, t, s, o] = parse<G1|Zp^3>(sig);
         auto a = parse<Zp>(attr);
         auto A = parse<G1>(pk.a);
-        auto W0 = redact_impl(a, o, I, A);
+        auto W0 = preprocess_impl(a, o, I, A);
         return serialize(W0);
     }
 
-    MoniPoly::PresInfo MoniPoly::pres(
-        std::string_view m,
+    MoniPoly::PresProof MoniPoly::pres(
+        const UserSecretKey& usk,
         std::span<const serialized_field<Zp>> attr,
         const Signature& sig,
         std::span<const size_t> I,
-        const RedactCache& redact_cache,
-        const UserSecretKey& usk,
+        const PresCache& cache,
+        std::string_view m,
         const PublicKey& pk,
         RandomEngine& random
     )
@@ -133,7 +133,7 @@ namespace anonymous_credentials
         auto [v, t, s, o] = parse<G1|Zp^3>(sig);
         auto a = parse<Zp>(attr);
         auto z = parse<Zp>(usk);
-        auto W0 = parse<G1>(redact_cache);
+        auto W0 = parse<G1>(cache);
         auto [b, c, u, tiled_g, tiled_X] = parse<G1^3|G2^2>(pk.fixed_part);
 
         return pres_impl(m, a, I, v, t, s, W0, z, b, c, u, pk.fixed_part, random);
