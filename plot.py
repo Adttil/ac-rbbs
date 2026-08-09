@@ -16,7 +16,7 @@ TIME_UNIT_TO_MILLISECONDS = {
 }
 BENCHMARK_NAME = re.compile(
     r"^(experiment[12])/([^/]+)/([^/]+)/attributes:(\d+)/disclosed:(\d+)"
-    r"(?:/iterations:\d+)?(?:/manual_time)?$"
+    r"(?:/(?:iterations:\d+|repeats:\d+|process_time|manual_time|real_time|threads:\d+))*$"
 )
 MARKERS = ("o", "s", "D", "^", "v", "P", "X", "*", "<", ">", "h", "p")
 LINESTYLES = ("-", "--", ":", "-.")
@@ -35,21 +35,58 @@ def prompt_path(prompt):
         print("Path cannot be empty.")
 
 
+def prompt_time_type():
+    choices = {
+        "1": "real",
+        "2": "cpu",
+    }
+    while True:
+        print("Time measurement:")
+        print("  1. Real time")
+        print("  2. CPU time")
+        try:
+            choice = input("Select [1/2]: ").strip()
+        except EOFError as error:
+            raise ValueError(
+                "missing time selection and no interactive input is available"
+            ) from error
+
+        if choice in choices:
+            return choices[choice]
+        print("Please enter 1 or 2.")
+
+
 def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Plot anonymous credential benchmark results."
     )
     parser.add_argument(
-        "source",
-        nargs="?",
+        "-i",
+        "--input",
+        dest="source",
         type=Path,
         help="Google Benchmark JSON file",
     )
     parser.add_argument(
-        "output",
-        nargs="?",
+        "-o",
+        "--output",
         type=Path,
         help="directory in which generated plots are saved",
+    )
+    time_group = parser.add_mutually_exclusive_group()
+    time_group.add_argument(
+        "--real-time",
+        dest="time_type",
+        action="store_const",
+        const="real",
+        help="plot real time",
+    )
+    time_group.add_argument(
+        "--cpu-time",
+        dest="time_type",
+        action="store_const",
+        const="cpu",
+        help="plot CPU time",
     )
     arguments = parser.parse_args()
 
@@ -57,6 +94,8 @@ def parse_arguments():
         arguments.source = prompt_path("Benchmark JSON source: ")
     if arguments.output is None:
         arguments.output = prompt_path("Plot output directory: ")
+    if arguments.time_type is None:
+        arguments.time_type = prompt_time_type()
 
     return arguments
 
@@ -70,7 +109,7 @@ def parse_benchmark_name(name):
     return experiment, scheme, operation, int(attributes), int(disclosed)
 
 
-def load_benchmarks(source):
+def load_benchmarks(source, time_type):
     if not source.is_file():
         raise FileNotFoundError(f"benchmark JSON file does not exist: {source}")
 
@@ -96,10 +135,11 @@ def load_benchmarks(source):
         time_unit = benchmark.get("time_unit")
         if time_unit not in TIME_UNIT_TO_MILLISECONDS:
             raise ValueError(f"unsupported time unit for {name}: {time_unit}")
-        if "cpu_time" not in benchmark:
-            raise ValueError(f"benchmark has no CPU time: {name}")
+        time_field = f"{time_type}_time"
+        if time_field not in benchmark:
+            raise ValueError(f"benchmark has no {time_type} time: {name}")
 
-        time = benchmark["cpu_time"] * TIME_UNIT_TO_MILLISECONDS[time_unit]
+        time = benchmark[time_field] * TIME_UNIT_TO_MILLISECONDS[time_unit]
         if benchmark.get("run_type", "iteration") == "iteration":
             iterations[key].append(time)
         elif benchmark.get("aggregate_name") == "mean":
@@ -354,7 +394,7 @@ def main():
     if output.exists() and not output.is_dir():
         raise NotADirectoryError(f"plot output path is not a directory: {output}")
 
-    benchmarks = load_benchmarks(source)
+    benchmarks = load_benchmarks(source, arguments.time_type)
     output.mkdir(parents=True, exist_ok=True)
     plot_experiment(benchmarks, output, "experiment1")
     plot_experiment(benchmarks, output, "experiment2")
