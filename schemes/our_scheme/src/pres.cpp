@@ -70,7 +70,7 @@ namespace anonymous_credentials
             auto [alpha, beta, gamma] = random-select_in<Zp^3>;
             auto U = (u^gamma) * (C_I^alpha) * (A_^beta);
 
-            auto c = hash(m, A_, B_, C_J_, D_, U).to(Zp);
+            auto c = hash(m, C_I, A_, B_, C_J_, D_, U).to(Zp);
             auto s_r = alpha + r*c;
             auto s_w = beta + -w*c;
             auto s_z = gamma + r*z*c;
