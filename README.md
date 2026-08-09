@@ -1,4 +1,5 @@
 # Benchmarks of Anonymous Credential Schemes
+[![license](https://img.shields.io/github/license/Adttil/ac-rbbs.svg)](https://github.com/Adttil/ac-rbbs/blob/master/LICENSE.txt)
 
 This repository provides the reference implementation and performance evaluation of our redactable BBS anonymous credential scheme. For comparative evaluation, it also includes implementations of three existing anonymous credential schemes—RPS, BBS, and MoniPoly—as baselines.
 
