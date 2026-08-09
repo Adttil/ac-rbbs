@@ -13,7 +13,7 @@ set(CRYPTO12381_INCLUDE_EXAMPLES OFF CACHE BOOL "Build crypto12381 examples" FOR
 FetchContent_Declare(
     crypto12381
     GIT_REPOSITORY https://github.com/Adttil/crypto12381.git
-    GIT_TAG main
+    GIT_TAG v0.2.0
     EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(crypto12381)

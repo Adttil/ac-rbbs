@@ -104,7 +104,7 @@ Line charts of the expected presentation cost at a 50% cache hit rate. For schem
 
 | Component | Version | Source |
 | --- | --- | --- |
-| crypto12381 | Latest `main` | [github.com/Adttil/crypto12381](https://github.com/Adttil/crypto12381) |
+| crypto12381 | 0.2.0 | [github.com/Adttil/crypto12381](https://github.com/Adttil/crypto12381) |
 | cxxopts | 3.3.1 | [github.com/jarro2783/cxxopts](https://github.com/jarro2783/cxxopts) |
 | Google Benchmark | 1.9.5 | [github.com/google/benchmark](https://github.com/google/benchmark) |
 
