@@ -75,20 +75,40 @@ struct Experiment2Config
     size_t samples = 10uz;
 };
 
+struct Experiment3Config
+{
+    size_t attributes_first = 10uz;
+    size_t attributes_interval = 10uz;
+    size_t attributes_samples = 10uz;
+    size_t disclosed_first = 1uz;
+    size_t disclosed_interval = 1uz;
+    size_t disclosed_samples = 10uz;
+};
+
 struct BenchmarkConfig
 {
     Experiment1Config experiment1;
     Experiment2Config experiment2;
+    Experiment3Config experiment3;
 };
 
 void validate(const BenchmarkConfig& config)
 {
-    const auto& [experiment1, experiment2] = config;
-    if(experiment1.samples == 0uz || experiment2.samples == 0uz)
+    const auto& [experiment1, experiment2, experiment3] = config;
+    if(
+        experiment1.samples == 0uz
+        || experiment2.samples == 0uz
+        || experiment3.attributes_samples == 0uz
+        || experiment3.disclosed_samples == 0uz
+    )
     {
         throw std::invalid_argument{ "sample counts must be positive" };
     }
-    if(experiment1.first == 0uz || experiment2.n_attributes == 0uz)
+    if(
+        experiment1.first == 0uz
+        || experiment2.n_attributes == 0uz
+        || experiment3.attributes_first == 0uz
+    )
     {
         throw std::invalid_argument{ "total attribute counts must be positive" };
     }
@@ -101,6 +121,13 @@ void validate(const BenchmarkConfig& config)
     if(experiment2_last > experiment2.n_attributes)
     {
         throw std::invalid_argument{ "experiment2 disclosed attribute count exceeds its total attribute count" };
+    }
+
+    const auto experiment3_disclosed_last = experiment3.disclosed_first
+        + experiment3.disclosed_interval * (experiment3.disclosed_samples - 1uz);
+    if(experiment3_disclosed_last > experiment3.attributes_first)
+    {
+        throw std::invalid_argument{ "experiment3 disclosed attribute count exceeds its first total attribute count" };
     }
 }
 
@@ -232,18 +259,41 @@ void register_experiment_2(const BenchmarkConfig& config, std::span<const size_t
 }
 
 template<anonymous_credential...AC>
+void register_experiment_3(const BenchmarkConfig& config, std::span<const size_t> indexes, const AC&...ac)
+{
+    const auto& experiment = config.experiment3;
+
+    for(size_t attributes_sample = 0uz; attributes_sample < experiment.attributes_samples; ++attributes_sample)
+    {
+        const auto attribute_count = experiment.attributes_first
+            + experiment.attributes_interval * attributes_sample;
+        for(size_t disclosed_sample = 0uz; disclosed_sample < experiment.disclosed_samples; ++disclosed_sample)
+        {
+            const auto disclosed_count = experiment.disclosed_first
+                + experiment.disclosed_interval * disclosed_sample;
+            const auto disclosed_indexes = indexes.first(disclosed_count);
+            (register_scheme_benchmarks("experiment3", ac, attribute_count, disclosed_indexes), ...);
+        }
+    }
+}
+
+template<anonymous_credential...AC>
 void run_benchmarks(const BenchmarkConfig& config, const AC&...ac)
 {
-    const auto& [config1, config2] = config;
+    const auto& [config1, config2, config3] = config;
     const auto n_attributes_max = std::max(
-        config1.first + config1.interval * (config1.samples - 1uz), 
-        config2.n_attributes
+        std::max(
+            config1.first + config1.interval * (config1.samples - 1uz),
+            config2.n_attributes
+        ),
+        config3.attributes_first + config3.attributes_interval * (config3.attributes_samples - 1uz)
     );
     std::vector<size_t> indexes(n_attributes_max);
     std::iota(indexes.begin(), indexes.end(), 0uz);
 
     register_experiment_1(config, indexes, ac...);
     register_experiment_2(config, indexes, ac...);
+    register_experiment_3(config, indexes, ac...);
     benchmark::RunSpecifiedBenchmarks();
 }
 
@@ -269,6 +319,14 @@ cxxopts::Options make_options(BenchmarkConfig& config)
         ("exp2-start", "First disclosed attribute count", with_default(config.experiment2.first))
         ("exp2-step", "Sampling interval", with_default(config.experiment2.interval))
         ("exp2-samples", "Number of samples", with_default(config.experiment2.samples));
+
+    options.add_options("Experiment 3")
+        ("exp3-total-start", "First total attribute count", with_default(config.experiment3.attributes_first))
+        ("exp3-total-step", "Total attribute sampling interval", with_default(config.experiment3.attributes_interval))
+        ("exp3-total-samples", "Number of total attribute samples", with_default(config.experiment3.attributes_samples))
+        ("exp3-disclosed-start", "First disclosed attribute count", with_default(config.experiment3.disclosed_first))
+        ("exp3-disclosed-step", "Disclosed attribute sampling interval", with_default(config.experiment3.disclosed_interval))
+        ("exp3-disclosed-samples", "Number of disclosed attribute samples", with_default(config.experiment3.disclosed_samples));
 
     return options;
 }

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.patches import Patch
 
 
 TIME_UNIT_TO_MILLISECONDS = {
@@ -15,7 +16,7 @@ TIME_UNIT_TO_MILLISECONDS = {
     "s": 1e3,
 }
 BENCHMARK_NAME = re.compile(
-    r"^(experiment[12])/([^/]+)/([^/]+)/attributes:(\d+)/disclosed:(\d+)"
+    r"^(experiment[123])/([^/]+)/([^/]+)/attributes:(\d+)/disclosed:(\d+)"
     r"(?:/(?:iterations:\d+|repeats:\d+|process_time|manual_time|real_time|threads:\d+))*$"
 )
 MARKERS = ("o", "s", "D", "^", "v", "P", "X", "*", "<", ">", "h", "p")
@@ -156,26 +157,27 @@ def load_benchmarks(source, time_type):
     return values
 
 
-def get_schemes(benchmarks, experiment):
-    schemes = list(
-        dict.fromkeys(key[1] for key in benchmarks if key[0] == experiment)
+def get_schemes(benchmarks, experiment, operation):
+    return list(
+        dict.fromkeys(
+            key[1]
+            for key in benchmarks
+            if key[0] == experiment and key[2] == operation
+        )
     )
-    if not schemes:
-        raise ValueError(f"source contains no benchmarks for {experiment}")
-    return schemes
 
 
-def get_sample_points(benchmarks, experiment):
+def get_sample_points(benchmarks, experiment, operation):
     x_index = 3 if experiment == "experiment1" else 4
     points = sorted(
         {
             key[x_index]
             for key in benchmarks
-            if key[0] == experiment and key[2] == "pres"
+            if key[0] == experiment and key[2] == operation
         }
     )
     if not points:
-        raise ValueError(f"source contains no presentation benchmarks for {experiment}")
+        raise ValueError(f"source contains no {operation} benchmarks for {experiment}")
     return points
 
 
@@ -216,16 +218,27 @@ def has_cache_benchmarks(benchmarks, experiment, scheme):
     return has_preprocess
 
 
-def load_experiment(benchmarks, experiment):
-    schemes = get_schemes(benchmarks, experiment)
-    x = get_sample_points(benchmarks, experiment)
-    series = {}
+def load_operation(benchmarks, experiment, operation):
+    schemes = get_schemes(benchmarks, experiment, operation)
+    if not schemes:
+        return None
 
+    x = get_sample_points(benchmarks, experiment, operation)
+    return schemes, x, {
+        scheme: load_series(benchmarks, experiment, scheme, operation, x)
+        for scheme in schemes
+    }
+
+
+def load_presentations(benchmarks, experiment):
+    loaded = load_operation(benchmarks, experiment, "pres")
+    if loaded is None:
+        return None
+
+    schemes, x, presentations = loaded
+    series = {}
     for scheme in schemes:
-        values = {
-            "pres": load_series(benchmarks, experiment, scheme, "pres", x),
-            "verify": load_series(benchmarks, experiment, scheme, "verify", x),
-        }
+        values = {"pres": presentations[scheme]}
         if has_cache_benchmarks(benchmarks, experiment, scheme):
             values["preprocess"] = load_series(
                 benchmarks, experiment, scheme, "preprocess", x
@@ -236,6 +249,51 @@ def load_experiment(benchmarks, experiment):
         series[scheme] = values
 
     return schemes, x, series
+
+
+def load_surfaces(benchmarks, experiment, operation):
+    schemes = get_schemes(benchmarks, experiment, operation)
+    if not schemes:
+        return None
+
+    attributes = sorted(
+        {
+            key[3]
+            for key in benchmarks
+            if key[0] == experiment and key[2] == operation
+        }
+    )
+    disclosed = sorted(
+        {
+            key[4]
+            for key in benchmarks
+            if key[0] == experiment and key[2] == operation
+        }
+    )
+    surfaces = {}
+    for scheme in schemes:
+        name = f"{experiment}/{scheme}/{operation}"
+        values = {
+            (key[3], key[4]): value
+            for key, value in benchmarks.items()
+            if key[0] == experiment and key[1] == scheme and key[2] == operation
+        }
+        missing = [
+            (attribute_count, disclosed_count)
+            for disclosed_count in disclosed
+            for attribute_count in attributes
+            if (attribute_count, disclosed_count) not in values
+        ]
+        if missing:
+            raise ValueError(f"{name} has incomplete sampling grid; missing: {missing}")
+        surfaces[scheme] = np.array(
+            [
+                [values[attribute_count, disclosed_count] for attribute_count in attributes]
+                for disclosed_count in disclosed
+            ]
+        )
+
+    return schemes, attributes, disclosed, surfaces
 
 
 def get_colors(count):
@@ -339,52 +397,95 @@ def plot_pres_bars(
 
 
 def plot_experiment(benchmarks, output, experiment):
-    schemes, x, series = load_experiment(benchmarks, experiment)
-    colors = get_colors(len(schemes))
     xlabel = (
         "total attributes count"
         if experiment == "experiment1"
         else "disclosed attributes count"
     )
 
-    plot_lines(
-        output,
-        f"{experiment}_verify.png",
-        schemes,
-        colors,
-        x,
-        {scheme: series[scheme]["verify"] for scheme in schemes},
-        xlabel,
-    )
-    plot_pres_bars(
-        output,
-        f"{experiment}_pres.png",
-        schemes,
-        colors,
-        x,
-        series,
-        xlabel,
-    )
+    verify = load_operation(benchmarks, experiment, "verify")
+    if verify is not None:
+        schemes, x, series = verify
+        plot_lines(
+            output,
+            f"{experiment}_verify.png",
+            schemes,
+            get_colors(len(schemes)),
+            x,
+            series,
+            xlabel,
+        )
 
-    cache_hit = {}
-    for scheme in schemes:
-        values = series[scheme]
-        if "preprocess" in values:
-            cache_hit[scheme] = (
-                0.5 * values["preprocess"] + values["pres_with_cache"]
-            )
-        else:
-            cache_hit[scheme] = values["pres"]
+    presentations = load_presentations(benchmarks, experiment)
+    if presentations is not None:
+        schemes, x, series = presentations
+        colors = get_colors(len(schemes))
+        plot_pres_bars(
+            output,
+            f"{experiment}_pres.png",
+            schemes,
+            colors,
+            x,
+            series,
+            xlabel,
+        )
 
-    plot_lines(
-        output,
-        f"{experiment}_pres_50_percent_cache_hit.png",
-        schemes,
-        colors,
-        x,
-        cache_hit,
-        xlabel,
+        cache_hit = {}
+        for scheme in schemes:
+            values = series[scheme]
+            if "preprocess" in values:
+                cache_hit[scheme] = (
+                    0.5 * values["preprocess"] + values["pres_with_cache"]
+                )
+            else:
+                cache_hit[scheme] = values["pres"]
+
+        plot_lines(
+            output,
+            f"{experiment}_pres_50_percent_cache_hit.png",
+            schemes,
+            colors,
+            x,
+            cache_hit,
+            xlabel,
+        )
+
+
+def plot_experiment_3(benchmarks, output):
+    loaded = load_surfaces(benchmarks, "experiment3", "verify")
+    if loaded is None:
+        return
+
+    schemes, attributes, disclosed, surfaces = loaded
+    colors = get_colors(len(schemes))
+    attribute_grid, disclosed_grid = np.meshgrid(attributes, disclosed)
+
+    figure = plt.figure(figsize=(9, 6.5))
+    axes = figure.add_subplot(projection="3d")
+    for index, scheme in enumerate(schemes):
+        axes.plot_surface(
+            attribute_grid,
+            disclosed_grid,
+            surfaces[scheme],
+            color=colors[index],
+            alpha=0.65,
+            linewidth=0.4,
+            edgecolor=colors[index],
+        )
+
+    axes.set_xticks(attributes)
+    axes.set_yticks(disclosed)
+    axes.set_zlim(bottom=0)
+    axes.set_xlabel("total attributes count")
+    axes.set_ylabel("disclosed attributes count")
+    axes.set_zlabel("time cost (ms)")
+    axes.set_proj_type("ortho")
+    axes.view_init(elev=20, azim=-127.5)
+    axes.legend(
+        handles=[Patch(facecolor=colors[index], label=scheme) for index, scheme in enumerate(schemes)],
+        loc="best",
     )
+    save_plot(output, "experiment3_verify.png")
 
 
 def main():
@@ -396,8 +497,13 @@ def main():
 
     benchmarks = load_benchmarks(source, arguments.time_type)
     output.mkdir(parents=True, exist_ok=True)
-    plot_experiment(benchmarks, output, "experiment1")
-    plot_experiment(benchmarks, output, "experiment2")
+    experiments = {key[0] for key in benchmarks}
+    if "experiment1" in experiments:
+        plot_experiment(benchmarks, output, "experiment1")
+    if "experiment2" in experiments:
+        plot_experiment(benchmarks, output, "experiment2")
+    if "experiment3" in experiments:
+        plot_experiment_3(benchmarks, output)
 
 
 if __name__ == "__main__":
