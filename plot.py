@@ -451,26 +451,33 @@ def plot_experiment(benchmarks, output, experiment):
         )
 
 
-def plot_experiment_3(benchmarks, output):
-    loaded = load_surfaces(benchmarks, "experiment3", "verify")
-    if loaded is None:
-        return
-
-    schemes, attributes, disclosed, surfaces = loaded
-    colors = get_colors(len(schemes))
+def plot_surfaces(output, filename, attributes, disclosed, series):
     attribute_grid, disclosed_grid = np.meshgrid(attributes, disclosed)
 
     figure = plt.figure(figsize=(9, 6.5))
     axes = figure.add_subplot(projection="3d")
-    for index, scheme in enumerate(schemes):
+    handles = []
+    for label, values, color, online in series:
+        alpha = 0.4 if online else 0.65
+        hatch = "//" if online else None
         axes.plot_surface(
             attribute_grid,
             disclosed_grid,
-            surfaces[scheme],
-            color=colors[index],
-            alpha=0.65,
+            values,
+            color=color,
+            alpha=alpha,
             linewidth=0.4,
-            edgecolor=colors[index],
+            edgecolor=color,
+            hatch=hatch,
+        )
+        handles.append(
+            Patch(
+                facecolor=color,
+                edgecolor=color,
+                alpha=alpha,
+                hatch=hatch,
+                label=label,
+            )
         )
 
     axes.set_xticks(attributes)
@@ -481,11 +488,68 @@ def plot_experiment_3(benchmarks, output):
     axes.set_zlabel("time cost (ms)")
     axes.set_proj_type("ortho")
     axes.view_init(elev=20, azim=-127.5)
-    axes.legend(
-        handles=[Patch(facecolor=colors[index], label=scheme) for index, scheme in enumerate(schemes)],
-        loc="best",
+    axes.legend(handles=handles, loc="best")
+    save_plot(output, filename)
+
+
+def plot_experiment_3(benchmarks, output):
+    verify = load_surfaces(benchmarks, "experiment3", "verify")
+    if verify is not None:
+        schemes, attributes, disclosed, surfaces = verify
+        colors = get_colors(len(schemes))
+        plot_surfaces(
+            output,
+            "experiment3_verify.png",
+            attributes,
+            disclosed,
+            [
+                (scheme, surfaces[scheme], colors[index], False)
+                for index, scheme in enumerate(schemes)
+            ],
+        )
+
+    presentations = load_surfaces(benchmarks, "experiment3", "pres")
+    if presentations is None:
+        return
+
+    schemes, attributes, disclosed, surfaces = presentations
+    colors = get_colors(len(schemes))
+    online = load_surfaces(benchmarks, "experiment3", "pres_with_cache")
+    online_surfaces = {}
+    if online is not None:
+        online_schemes, online_attributes, online_disclosed, online_surfaces = online
+        if online_attributes != attributes or online_disclosed != disclosed:
+            raise ValueError(
+                "experiment3/pres_with_cache has sample points inconsistent "
+                "with experiment3/pres"
+            )
+        extra_schemes = [scheme for scheme in online_schemes if scheme not in schemes]
+        if extra_schemes:
+            raise ValueError(
+                "experiment3/pres_with_cache has schemes missing from "
+                f"experiment3/pres: {extra_schemes}"
+            )
+
+    series = []
+    for index, scheme in enumerate(schemes):
+        series.append((scheme, surfaces[scheme], colors[index], False))
+        if scheme in online_surfaces:
+            series.append(
+                (
+                    f"{scheme} Online",
+                    online_surfaces[scheme],
+                    colors[index],
+                    True,
+                )
+            )
+
+    plot_surfaces(
+        output,
+        "experiment3_pres.png",
+        attributes,
+        disclosed,
+        series,
     )
-    save_plot(output, "experiment3_verify.png")
 
 
 def main():
