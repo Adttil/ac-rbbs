@@ -1,4 +1,5 @@
 import argparse
+import inspect
 import json
 import re
 from collections import defaultdict
@@ -244,6 +245,38 @@ def save_plot(figure, output, filename):
     plt.close(figure)
 
 
+def remove_legacy_3d_axis_padding(axes):
+    if not inspect.signature(axes.zaxis._get_coord_info).parameters:
+        return
+
+    for axis in (axes.xaxis, axes.yaxis, axes.zaxis):
+        original_get_coord_info = axis._get_coord_info
+
+        def get_coord_info(renderer, original=original_get_coord_info, axis=axis):
+            mins, maxs, centers, deltas, _, _ = original(renderer)
+            mins += deltas / 4
+            maxs -= deltas / 4
+            bounds = (
+                mins[0],
+                maxs[0],
+                mins[1],
+                maxs[1],
+                mins[2],
+                maxs[2],
+            )
+            coordinates = axes.tunit_cube(bounds, axes.M)
+            average_z = [
+                sum(coordinates[index][2] for index in plane)
+                for plane in axis._PLANES
+            ]
+            highs = np.array(
+                [average_z[2 * index] < average_z[2 * index + 1] for index in range(3)]
+            )
+            return mins, maxs, centers, deltas, coordinates, highs
+
+        axis._get_coord_info = get_coord_info
+
+
 def plot_surfaces(output, filename, attributes, disclosed, series):
     attribute_grid, disclosed_grid = np.meshgrid(attributes, disclosed)
 
@@ -276,6 +309,7 @@ def plot_surfaces(output, filename, attributes, disclosed, series):
     axes.set_xticks(attributes)
     axes.set_yticks(disclosed)
     axes.set_zlim(bottom=0)
+    remove_legacy_3d_axis_padding(axes)
     axes.set_xlabel("total attributes count")
     axes.set_ylabel("disclosed attributes count")
     axes.set_zlabel("time cost (ms)")
