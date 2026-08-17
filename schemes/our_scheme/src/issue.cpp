@@ -19,7 +19,7 @@ namespace anonymous_credentials
         const size_t n = a.size();
 
         auto w = random-select_in<*Zp>;
-        auto C = h * Z * Y[n + 1uz] * Π[n](Y[n + i + 2uz]^a[i]);
+        auto C = h * Z * Y[n + 1uz] * Π[n](Y[n + i + 2uz]^hash(a[i]).to(Zp));
         auto A = C^inverse(x + w);
 
         return serialize(A, C, w);

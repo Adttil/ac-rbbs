@@ -19,7 +19,7 @@ namespace anonymous_credentials
         auto I = indexes | algebraic;
         auto [A_, B_, C_J_, D_, U, s_r, s_w, s_z] = parse<G1^5|Zp^3>(proof);
 
-        auto C_I = h * Π[i.in(I)](Y[n + i + 2uz]^a[i]);
+        auto C_I = h * Π[i.in(I)](Y[n + i + 2uz]^hash(a[i]).to(Zp));
         auto c = hash(m, C_I, A_, B_, C_J_, D_, U).to(Zp);
         auto q = hash(C_I, i).to(Zp) (i.in(I));
         auto Q_I = Π[i.in[I.size()]](tilde_Y[n - 1uz - I[i]]^q[i]);
