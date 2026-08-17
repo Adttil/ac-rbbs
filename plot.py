@@ -283,6 +283,7 @@ def plot_surfaces(output, filename, attributes, disclosed, series):
     figure = plt.figure(figsize=(9, 6.5))
     axes = figure.add_subplot(projection="3d")
     handles = []
+    online_handles = []
     for label, values, color, online in series:
         alpha = 0.4 if online else 0.65
         hatch = "//" if online else None
@@ -296,7 +297,7 @@ def plot_surfaces(output, filename, attributes, disclosed, series):
             edgecolor=color,
             hatch=hatch,
         )
-        handles.append(
+        (online_handles if online else handles).append(
             Patch(
                 facecolor=color,
                 edgecolor=color,
@@ -315,7 +316,7 @@ def plot_surfaces(output, filename, attributes, disclosed, series):
     axes.set_zlabel("time cost (ms)")
     axes.set_proj_type("ortho")
     axes.view_init(elev=20, azim=-127.5)
-    axes.legend(handles=handles, loc="best")
+    axes.legend(handles=handles + online_handles, loc="best")
     save_plot(figure, output, filename)
 
 
