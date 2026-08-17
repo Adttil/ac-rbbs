@@ -7,7 +7,10 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Patch
+from matplotlib.transforms import Bbox
 
+
+plt.rcParams["pdf.fonttype"] = 42
 
 TIME_UNIT_TO_MILLISECONDS = {
     "ns": 1e-6,
@@ -308,9 +311,25 @@ def get_colors(count):
     return [colormap(index / count) for index in range(count)]
 
 
-def save_plot(output, filename):
+def save_plot(output, filename, crop=False):
     plt.tight_layout()
-    plt.savefig(output / filename, dpi=200)
+    bbox = None
+    if crop:
+        figure = plt.gcf()
+        figure.canvas.draw()
+        tight_bbox = figure.get_tightbbox(figure.canvas.get_renderer())
+        bbox = Bbox.from_extents(
+            tight_bbox.x0 - 0.05,
+            tight_bbox.y0 + 0.45,
+            tight_bbox.x1,
+            tight_bbox.y1,
+        )
+    plt.savefig(
+        output / filename,
+        dpi=200,
+        bbox_inches=bbox,
+        pad_inches=0.05 if crop else 0.1,
+    )
     plt.close()
 
 
@@ -408,7 +427,7 @@ def plot_experiment(benchmarks, output, experiment):
         schemes, x, series = verify
         plot_lines(
             output,
-            f"{experiment}_verify.png",
+            f"{experiment}_verify.pdf",
             schemes,
             get_colors(len(schemes)),
             x,
@@ -422,7 +441,7 @@ def plot_experiment(benchmarks, output, experiment):
         colors = get_colors(len(schemes))
         plot_pres_bars(
             output,
-            f"{experiment}_pres.png",
+            f"{experiment}_pres.pdf",
             schemes,
             colors,
             x,
@@ -442,7 +461,7 @@ def plot_experiment(benchmarks, output, experiment):
 
         plot_lines(
             output,
-            f"{experiment}_pres_50_percent_cache_hit.png",
+            f"{experiment}_pres_50_percent_cache_hit.pdf",
             schemes,
             colors,
             x,
@@ -489,7 +508,7 @@ def plot_surfaces(output, filename, attributes, disclosed, series):
     axes.set_proj_type("ortho")
     axes.view_init(elev=20, azim=-127.5)
     axes.legend(handles=handles, loc="best")
-    save_plot(output, filename)
+    save_plot(output, filename, crop=True)
 
 
 def plot_experiment_3(benchmarks, output):
@@ -499,7 +518,7 @@ def plot_experiment_3(benchmarks, output):
         colors = get_colors(len(schemes))
         plot_surfaces(
             output,
-            "experiment3_verify.png",
+            "experiment3_verify.pdf",
             attributes,
             disclosed,
             [
@@ -545,7 +564,7 @@ def plot_experiment_3(benchmarks, output):
 
     plot_surfaces(
         output,
-        "experiment3_pres.png",
+        "experiment3_pres.pdf",
         attributes,
         disclosed,
         series,
