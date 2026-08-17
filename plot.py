@@ -19,11 +19,9 @@ TIME_UNIT_TO_MILLISECONDS = {
     "s": 1e3,
 }
 BENCHMARK_NAME = re.compile(
-    r"^(experiment[123])/([^/]+)/([^/]+)/attributes:(\d+)/disclosed:(\d+)"
+    r"^([^/]+)/([^/]+)/attributes:(\d+)/disclosed:(\d+)"
     r"(?:/(?:iterations:\d+|repeats:\d+|process_time|manual_time|real_time|threads:\d+))*$"
 )
-MARKERS = ("o", "s", "D", "^", "v", "P", "X", "*", "<", ">", "h", "p")
-LINESTYLES = ("-", "--", ":", "-.")
 
 
 def prompt_path(prompt):
@@ -109,8 +107,8 @@ def parse_benchmark_name(name):
     if match is None:
         return None
 
-    experiment, scheme, operation, attributes, disclosed = match.groups()
-    return experiment, scheme, operation, int(attributes), int(disclosed)
+    scheme, operation, attributes, disclosed = match.groups()
+    return scheme, operation, int(attributes), int(disclosed)
 
 
 def load_benchmarks(source, time_type):
@@ -155,131 +153,47 @@ def load_benchmarks(source, time_type):
         values[key] = sum(samples) / len(samples)
 
     if not values:
-        raise ValueError("source contains no recognized experiment benchmarks")
+        raise ValueError("source contains no recognized benchmarks")
 
     return values
 
 
-def get_schemes(benchmarks, experiment, operation):
+def get_schemes(benchmarks, operation):
     return list(
         dict.fromkeys(
-            key[1]
+            key[0]
             for key in benchmarks
-            if key[0] == experiment and key[2] == operation
+            if key[1] == operation
         )
     )
 
 
-def get_sample_points(benchmarks, experiment, operation):
-    x_index = 3 if experiment == "experiment1" else 4
-    points = sorted(
-        {
-            key[x_index]
-            for key in benchmarks
-            if key[0] == experiment and key[2] == operation
-        }
-    )
-    if not points:
-        raise ValueError(f"source contains no {operation} benchmarks for {experiment}")
-    return points
-
-
-def get_series(benchmarks, experiment, scheme, operation):
-    x_index = 3 if experiment == "experiment1" else 4
-    return {
-        key[x_index]: value
-        for key, value in benchmarks.items()
-        if key[0] == experiment and key[1] == scheme and key[2] == operation
-    }
-
-
-def load_series(benchmarks, experiment, scheme, operation, x):
-    name = f"{experiment}/{scheme}/{operation}"
-    series = get_series(benchmarks, experiment, scheme, operation)
-    if not series:
-        raise ValueError(f"missing benchmark series: {name}")
-
-    missing = [value for value in x if value not in series]
-    extra = [value for value in series if value not in x]
-    if missing or extra:
-        raise ValueError(
-            f"{name} has inconsistent sample points; missing: {missing}, extra: {extra}"
-        )
-    return np.array([series[value] for value in x])
-
-
-def has_cache_benchmarks(benchmarks, experiment, scheme):
-    has_preprocess = bool(get_series(benchmarks, experiment, scheme, "preprocess"))
-    has_pres_with_cache = bool(
-        get_series(benchmarks, experiment, scheme, "pres_with_cache")
-    )
-    if has_preprocess != has_pres_with_cache:
-        raise ValueError(
-            f"{experiment}/{scheme} must provide both preprocess and "
-            "pres_with_cache benchmarks"
-        )
-    return has_preprocess
-
-
-def load_operation(benchmarks, experiment, operation):
-    schemes = get_schemes(benchmarks, experiment, operation)
-    if not schemes:
-        return None
-
-    x = get_sample_points(benchmarks, experiment, operation)
-    return schemes, x, {
-        scheme: load_series(benchmarks, experiment, scheme, operation, x)
-        for scheme in schemes
-    }
-
-
-def load_presentations(benchmarks, experiment):
-    loaded = load_operation(benchmarks, experiment, "pres")
-    if loaded is None:
-        return None
-
-    schemes, x, presentations = loaded
-    series = {}
-    for scheme in schemes:
-        values = {"pres": presentations[scheme]}
-        if has_cache_benchmarks(benchmarks, experiment, scheme):
-            values["preprocess"] = load_series(
-                benchmarks, experiment, scheme, "preprocess", x
-            )
-            values["pres_with_cache"] = load_series(
-                benchmarks, experiment, scheme, "pres_with_cache", x
-            )
-        series[scheme] = values
-
-    return schemes, x, series
-
-
-def load_surfaces(benchmarks, experiment, operation):
-    schemes = get_schemes(benchmarks, experiment, operation)
+def load_surfaces(benchmarks, operation):
+    schemes = get_schemes(benchmarks, operation)
     if not schemes:
         return None
 
     attributes = sorted(
         {
-            key[3]
+            key[2]
             for key in benchmarks
-            if key[0] == experiment and key[2] == operation
+            if key[1] == operation
         }
     )
     disclosed = sorted(
         {
-            key[4]
+            key[3]
             for key in benchmarks
-            if key[0] == experiment and key[2] == operation
+            if key[1] == operation
         }
     )
     surfaces = {}
     for scheme in schemes:
-        name = f"{experiment}/{scheme}/{operation}"
+        name = f"{scheme}/{operation}"
         values = {
-            (key[3], key[4]): value
+            (key[2], key[3]): value
             for key, value in benchmarks.items()
-            if key[0] == experiment and key[1] == scheme and key[2] == operation
+            if key[0] == scheme and key[1] == operation
         }
         missing = [
             (attribute_count, disclosed_count)
@@ -311,163 +225,23 @@ def get_colors(count):
     return [colormap(index / count) for index in range(count)]
 
 
-def save_plot(output, filename, crop=False):
-    plt.tight_layout()
-    bbox = None
-    if crop:
-        figure = plt.gcf()
-        figure.canvas.draw()
-        tight_bbox = figure.get_tightbbox(figure.canvas.get_renderer())
-        bbox = Bbox.from_extents(
-            tight_bbox.x0 - 0.05,
-            tight_bbox.y0 + 0.45,
-            tight_bbox.x1,
-            tight_bbox.y1,
-        )
-    plt.savefig(
+def save_plot(figure, output, filename):
+    figure.tight_layout()
+    figure.canvas.draw()
+    tight_bbox = figure.get_tightbbox(figure.canvas.get_renderer())
+    bbox = Bbox.from_extents(
+        tight_bbox.x0 - 0.05,
+        tight_bbox.y0 + 0.45,
+        tight_bbox.x1,
+        tight_bbox.y1,
+    )
+    figure.savefig(
         output / filename,
         dpi=200,
         bbox_inches=bbox,
-        pad_inches=0.05 if crop else 0.1,
+        pad_inches=0.05,
     )
-    plt.close()
-
-
-def plot_lines(output, filename, schemes, colors, x, ys, xlabel):
-    plt.figure(figsize=(9, 5.5))
-
-    for index, scheme in enumerate(schemes):
-        plt.plot(
-            x,
-            ys[scheme],
-            label=scheme,
-            color=colors[index],
-            marker=MARKERS[index % len(MARKERS)],
-            linestyle=LINESTYLES[(index // len(MARKERS)) % len(LINESTYLES)],
-        )
-
-    plt.xlim(left=0)
-    plt.ylim(bottom=0)
-    plt.legend(loc="best")
-    plt.xlabel(xlabel)
-    plt.ylabel("time cost (ms)")
-    plt.grid(True, alpha=0.3)
-    save_plot(output, filename)
-
-
-def plot_pres_bars(
-    output,
-    filename,
-    schemes,
-    colors,
-    x,
-    series,
-    xlabel,
-):
-    positions = np.arange(len(x))
-    width = 0.8 / len(schemes)
-
-    plt.figure(figsize=(9, 5.5))
-    for index, scheme in enumerate(schemes):
-        bar_positions = positions + (index - (len(schemes) - 1) / 2) * width
-        values = series[scheme]
-        if "preprocess" in values:
-            online = values["pres_with_cache"]
-            plt.bar(
-                bar_positions,
-                online,
-                width,
-                label=f"{scheme} Online",
-                color=colors[index],
-                edgecolor="black",
-                linewidth=0.5,
-            )
-            plt.bar(
-                bar_positions,
-                values["preprocess"],
-                width,
-                bottom=online,
-                label=f"{scheme} Preprocess",
-                color=colors[index],
-                edgecolor="black",
-                linewidth=0.5,
-                hatch="//",
-                alpha=0.55,
-            )
-        else:
-            plt.bar(
-                bar_positions,
-                values["pres"],
-                width,
-                label=scheme,
-                color=colors[index],
-                edgecolor="black",
-                linewidth=0.5,
-            )
-
-    plt.xticks(positions, x)
-    plt.xlim(left=-0.5, right=len(x) - 0.5)
-    plt.ylim(bottom=0)
-    plt.legend(loc="best")
-    plt.xlabel(xlabel)
-    plt.ylabel("time cost (ms)")
-    plt.grid(True, axis="y", alpha=0.3)
-    save_plot(output, filename)
-
-
-def plot_experiment(benchmarks, output, experiment):
-    xlabel = (
-        "total attributes count"
-        if experiment == "experiment1"
-        else "disclosed attributes count"
-    )
-
-    verify = load_operation(benchmarks, experiment, "verify")
-    if verify is not None:
-        schemes, x, series = verify
-        plot_lines(
-            output,
-            f"{experiment}_verify.pdf",
-            schemes,
-            get_colors(len(schemes)),
-            x,
-            series,
-            xlabel,
-        )
-
-    presentations = load_presentations(benchmarks, experiment)
-    if presentations is not None:
-        schemes, x, series = presentations
-        colors = get_colors(len(schemes))
-        plot_pres_bars(
-            output,
-            f"{experiment}_pres.pdf",
-            schemes,
-            colors,
-            x,
-            series,
-            xlabel,
-        )
-
-        cache_hit = {}
-        for scheme in schemes:
-            values = series[scheme]
-            if "preprocess" in values:
-                cache_hit[scheme] = (
-                    0.5 * values["preprocess"] + values["pres_with_cache"]
-                )
-            else:
-                cache_hit[scheme] = values["pres"]
-
-        plot_lines(
-            output,
-            f"{experiment}_pres_50_percent_cache_hit.pdf",
-            schemes,
-            colors,
-            x,
-            cache_hit,
-            xlabel,
-        )
+    plt.close(figure)
 
 
 def plot_surfaces(output, filename, attributes, disclosed, series):
@@ -508,17 +282,17 @@ def plot_surfaces(output, filename, attributes, disclosed, series):
     axes.set_proj_type("ortho")
     axes.view_init(elev=20, azim=-127.5)
     axes.legend(handles=handles, loc="best")
-    save_plot(output, filename, crop=True)
+    save_plot(figure, output, filename)
 
 
-def plot_experiment_3(benchmarks, output):
-    verify = load_surfaces(benchmarks, "experiment3", "verify")
+def plot_benchmarks(benchmarks, output):
+    verify = load_surfaces(benchmarks, "verify")
     if verify is not None:
         schemes, attributes, disclosed, surfaces = verify
         colors = get_colors(len(schemes))
         plot_surfaces(
             output,
-            "experiment3_verify.pdf",
+            "verify.pdf",
             attributes,
             disclosed,
             [
@@ -527,26 +301,24 @@ def plot_experiment_3(benchmarks, output):
             ],
         )
 
-    presentations = load_surfaces(benchmarks, "experiment3", "pres")
+    presentations = load_surfaces(benchmarks, "pres")
     if presentations is None:
         return
 
     schemes, attributes, disclosed, surfaces = presentations
     colors = get_colors(len(schemes))
-    online = load_surfaces(benchmarks, "experiment3", "pres_with_cache")
+    online = load_surfaces(benchmarks, "pres_with_cache")
     online_surfaces = {}
     if online is not None:
         online_schemes, online_attributes, online_disclosed, online_surfaces = online
         if online_attributes != attributes or online_disclosed != disclosed:
             raise ValueError(
-                "experiment3/pres_with_cache has sample points inconsistent "
-                "with experiment3/pres"
+                "pres_with_cache has sample points inconsistent with pres"
             )
         extra_schemes = [scheme for scheme in online_schemes if scheme not in schemes]
         if extra_schemes:
             raise ValueError(
-                "experiment3/pres_with_cache has schemes missing from "
-                f"experiment3/pres: {extra_schemes}"
+                f"pres_with_cache has schemes missing from pres: {extra_schemes}"
             )
 
     series = []
@@ -564,7 +336,7 @@ def plot_experiment_3(benchmarks, output):
 
     plot_surfaces(
         output,
-        "experiment3_pres.pdf",
+        "pres.pdf",
         attributes,
         disclosed,
         series,
@@ -580,13 +352,7 @@ def main():
 
     benchmarks = load_benchmarks(source, arguments.time_type)
     output.mkdir(parents=True, exist_ok=True)
-    experiments = {key[0] for key in benchmarks}
-    if "experiment1" in experiments:
-        plot_experiment(benchmarks, output, "experiment1")
-    if "experiment2" in experiments:
-        plot_experiment(benchmarks, output, "experiment2")
-    if "experiment3" in experiments:
-        plot_experiment_3(benchmarks, output)
+    plot_benchmarks(benchmarks, output)
 
 
 if __name__ == "__main__":

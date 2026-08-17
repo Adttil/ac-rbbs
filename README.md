@@ -42,27 +42,25 @@ This builds the `benchmark` executable.
 
 ## Running Benchmarks
 
-Run the benchmarks with the default experiment configuration and write the results to a JSON file as follows:
+Run the benchmarks with the default configuration and write the results to a JSON file as follows:
 
 ```console
 $ cmake -E make_directory "out"
 $ ./build/benchmark --benchmark_out=out/results.json
 ```
 
-The benchmark comprises two experiments. Experiment 1 varies the total number of attributes while fixing the number of disclosed attributes. Experiment 2 varies the number of disclosed attributes while fixing the total number of attributes. The experiment parameters can be configured using the following command-line options:
+The benchmark samples the total and disclosed attribute counts as a two-dimensional grid. The sampling parameters can be configured using the following command-line options:
 
 | Option | Description | Default |
 | --- | --- | ---: |
-| `--exp1-disclosed` | Fixed disclosed attribute count | 3 |
-| `--exp1-start` | First total attribute count | 10 |
-| `--exp1-step` | Total attribute sampling interval | 10 |
-| `--exp1-samples` | Number of samples | 10 |
-| `--exp2-total` | Fixed total attribute count | 64 |
-| `--exp2-start` | First disclosed attribute count | 3 |
-| `--exp2-step` | Disclosed attribute sampling interval | 3 |
-| `--exp2-samples` | Number of samples | 10 |
+| `--total-start` | First total attribute count | 10 |
+| `--total-step` | Total attribute sampling interval | 10 |
+| `--total-samples` | Number of total attribute samples | 10 |
+| `--disclosed-start` | First disclosed attribute count | 1 |
+| `--disclosed-step` | Disclosed attribute sampling interval | 1 |
+| `--disclosed-samples` | Number of disclosed attribute samples | 10 |
 
-The executable also accepts Google Benchmark options. The most relevant ones for these experiments are:
+The executable also accepts Google Benchmark options. The most relevant ones are:
 
 | Option | Description |
 | --- | --- |
@@ -78,25 +76,21 @@ Use `--help` to display all project-specific and Google Benchmark options.
 Generate plots from a Google Benchmark JSON file using either real time or CPU time:
 
 ```console
-python plot.py -i out/results.json -o out/plots --real-time
-python plot.py --input out/results.json -o out/plots --cpu-time
+python plot.py -i out/results.json -o out --real-time
+python plot.py -i out/results.json -o out --cpu-time
 ```
 
 `--real-time` and `--cpu-time` are mutually exclusive. If the input path, output path, or time selection is omitted, the script interactively prompts for the missing value.
 
-The script generates six images:
+The script generates two vector figures:
 
-### `experiment1_verify.png`/`experiment2_verify.png`
+### `verify.pdf`
 
-Line charts of the verification cost.
+A three-dimensional surface plot of the verification cost.
 
-### `experiment1_pres.png`/`experiment2_pres.png`
+### `pres.pdf`
 
-Bar charts of the presentation cost under the corresponding experiment settings. For schemes with presentation caching, each bar is divided into `Preprocess` and `Online` stages.
-
-### `experiment1_pres_50_percent_cache_hit.png`/`experiment2_pres_50_percent_cache_hit.png`
-
-Line charts of the expected presentation cost at a 50% cache hit rate. For schemes with presentation caching, the expected cost is calculated as `pres_with_cache + 0.5 * preprocess`; for other schemes, the complete `pres` cost is used.
+A three-dimensional surface plot of the presentation cost. Cacheable schemes include both the complete presentation cost and the online cost using a presentation cache.
 
 ## Dependencies
 

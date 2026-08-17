@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <concepts>
 #include <cstddef>
 #include <iostream>
@@ -59,23 +58,7 @@ concept cacheable_anonymous_credential = anonymous_credential<AC> && requires(
     { ac.pres(usk, attr, sig, I, cache, m, pk, random) } -> std::same_as<typename AC::PresProof>;
 };
 
-struct Experiment1Config
-{
-    size_t n_disclosed = 3uz;
-    size_t first = 10uz;
-    size_t interval = 10uz;
-    size_t samples = 10uz;
-};
-
-struct Experiment2Config
-{
-    size_t n_attributes = 64uz;
-    size_t first = 3uz;
-    size_t interval = 3uz;
-    size_t samples = 10uz;
-};
-
-struct Experiment3Config
+struct BenchmarkConfig
 {
     size_t attributes_first = 10uz;
     size_t attributes_interval = 10uz;
@@ -85,65 +68,37 @@ struct Experiment3Config
     size_t disclosed_samples = 10uz;
 };
 
-struct BenchmarkConfig
-{
-    Experiment1Config experiment1;
-    Experiment2Config experiment2;
-    Experiment3Config experiment3;
-};
-
 void validate(const BenchmarkConfig& config)
 {
-    const auto& [experiment1, experiment2, experiment3] = config;
-    if(
-        experiment1.samples == 0uz
-        || experiment2.samples == 0uz
-        || experiment3.attributes_samples == 0uz
-        || experiment3.disclosed_samples == 0uz
-    )
+    if(config.attributes_samples == 0uz || config.disclosed_samples == 0uz)
     {
         throw std::invalid_argument{ "sample counts must be positive" };
     }
-    if(
-        experiment1.first == 0uz
-        || experiment2.n_attributes == 0uz
-        || experiment3.attributes_first == 0uz
-    )
+    if(config.attributes_first == 0uz)
     {
         throw std::invalid_argument{ "total attribute counts must be positive" };
     }
-    if(experiment1.n_disclosed > experiment1.first)
-    {
-        throw std::invalid_argument{ "experiment1 disclosed attribute count exceeds its first total attribute count" };
-    }
 
-    const auto experiment2_last = experiment2.first + experiment2.interval * (experiment2.samples - 1uz);
-    if(experiment2_last > experiment2.n_attributes)
+    const auto disclosed_last = config.disclosed_first
+        + config.disclosed_interval * (config.disclosed_samples - 1uz);
+    if(disclosed_last > config.attributes_first)
     {
-        throw std::invalid_argument{ "experiment2 disclosed attribute count exceeds its total attribute count" };
-    }
-
-    const auto experiment3_disclosed_last = experiment3.disclosed_first
-        + experiment3.disclosed_interval * (experiment3.disclosed_samples - 1uz);
-    if(experiment3_disclosed_last > experiment3.attributes_first)
-    {
-        throw std::invalid_argument{ "experiment3 disclosed attribute count exceeds its first total attribute count" };
+        throw std::invalid_argument{ "disclosed attribute count exceeds the first total attribute count" };
     }
 }
 
 template<anonymous_credential AC>
 void register_scheme_benchmarks(
-    std::string_view experiment,
     const AC& ac,
     size_t n,
     std::span<const size_t> I
 )
 {
-    const auto prefix = std::string{ experiment } + '/' + std::string{ ac.name() };
+    const auto prefix = std::string{ ac.name() };
     const auto parameters = "/attributes:" + std::to_string(n) + "/disclosed:" + std::to_string(I.size());
 
     const auto pres_name = prefix + "/pres" + parameters;
-    benchmark::RegisterBenchmark(pres_name.c_str(), [&ac, n, I](benchmark::State& state)
+    benchmark::RegisterBenchmark(pres_name.c_str(), [=, &ac](benchmark::State& state)
     {
         auto random = crypto12381::create_random_engine("seed");
         const auto keys = ac.keygen(n, random);
@@ -163,7 +118,7 @@ void register_scheme_benchmarks(
     if constexpr(cacheable_anonymous_credential<AC>)
     {
         const auto preprocess_name = prefix + "/preprocess" + parameters;
-        benchmark::RegisterBenchmark(preprocess_name.c_str(), [&ac, n, I](benchmark::State& state)
+        benchmark::RegisterBenchmark(preprocess_name.c_str(), [=, &ac](benchmark::State& state)
         {
             auto random = crypto12381::create_random_engine("seed");
             const auto keys = ac.keygen(n, random);
@@ -180,7 +135,7 @@ void register_scheme_benchmarks(
         })->Unit(benchmark::kMicrosecond);
 
         const auto pres_with_cache_name = prefix + "/pres_with_cache" + parameters;
-        benchmark::RegisterBenchmark(pres_with_cache_name.c_str(), [&ac, n, I](benchmark::State& state)
+        benchmark::RegisterBenchmark(pres_with_cache_name.c_str(), [=, &ac](benchmark::State& state)
         {
             auto random = crypto12381::create_random_engine("seed");
             const auto keys = ac.keygen(n, random);
@@ -207,7 +162,7 @@ void register_scheme_benchmarks(
     }
 
     const auto verify_name = prefix + "/verify" + parameters;
-    benchmark::RegisterBenchmark(verify_name.c_str(), [&ac, n, I](benchmark::State& state)
+    benchmark::RegisterBenchmark(verify_name.c_str(), [=, &ac](benchmark::State& state)
     {
         auto random = crypto12381::create_random_engine("seed");
         const auto keys = ac.keygen(n, random);
@@ -233,67 +188,26 @@ void register_scheme_benchmarks(
 }
 
 template<anonymous_credential...AC>
-void register_experiment_1(const BenchmarkConfig& config, std::span<const size_t> indexes, const AC&...ac)
-{
-    const auto& experiment = config.experiment1;
-    const auto disclosed_indexes = indexes.first(experiment.n_disclosed);
-
-    for(size_t sample = 0uz; sample < experiment.samples; ++sample)
-    {
-        const auto attribute_count = experiment.first + experiment.interval * sample;
-        (register_scheme_benchmarks("experiment1", ac, attribute_count, disclosed_indexes), ...);
-    }
-}
-
-template<anonymous_credential...AC>
-void register_experiment_2(const BenchmarkConfig& config, std::span<const size_t> indexes, const AC&...ac)
-{
-    const auto& experiment = config.experiment2;
-
-    for(size_t sample = 0uz; sample < experiment.samples; ++sample)
-    {
-        const auto disclosed_count = experiment.first + experiment.interval * sample;
-        const auto disclosed_indexes = indexes.first(disclosed_count);
-        (register_scheme_benchmarks("experiment2", ac, experiment.n_attributes, disclosed_indexes), ...);
-    }
-}
-
-template<anonymous_credential...AC>
-void register_experiment_3(const BenchmarkConfig& config, std::span<const size_t> indexes, const AC&...ac)
-{
-    const auto& experiment = config.experiment3;
-
-    for(size_t attributes_sample = 0uz; attributes_sample < experiment.attributes_samples; ++attributes_sample)
-    {
-        const auto attribute_count = experiment.attributes_first
-            + experiment.attributes_interval * attributes_sample;
-        for(size_t disclosed_sample = 0uz; disclosed_sample < experiment.disclosed_samples; ++disclosed_sample)
-        {
-            const auto disclosed_count = experiment.disclosed_first
-                + experiment.disclosed_interval * disclosed_sample;
-            const auto disclosed_indexes = indexes.first(disclosed_count);
-            (register_scheme_benchmarks("experiment3", ac, attribute_count, disclosed_indexes), ...);
-        }
-    }
-}
-
-template<anonymous_credential...AC>
 void run_benchmarks(const BenchmarkConfig& config, const AC&...ac)
 {
-    const auto& [config1, config2, config3] = config;
-    const auto n_attributes_max = std::max(
-        std::max(
-            config1.first + config1.interval * (config1.samples - 1uz),
-            config2.n_attributes
-        ),
-        config3.attributes_first + config3.attributes_interval * (config3.attributes_samples - 1uz)
-    );
-    std::vector<size_t> indexes(n_attributes_max);
+    const auto attributes_max = config.attributes_first
+        + config.attributes_interval * (config.attributes_samples - 1uz);
+    std::vector<size_t> indexes(attributes_max);
     std::iota(indexes.begin(), indexes.end(), 0uz);
+    const auto indexes_span = std::span<const size_t>{ indexes };
 
-    register_experiment_1(config, indexes, ac...);
-    register_experiment_2(config, indexes, ac...);
-    register_experiment_3(config, indexes, ac...);
+    for(size_t attributes_sample = 0uz; attributes_sample < config.attributes_samples; ++attributes_sample)
+    {
+        const auto attribute_count = config.attributes_first
+            + config.attributes_interval * attributes_sample;
+        for(size_t disclosed_sample = 0uz; disclosed_sample < config.disclosed_samples; ++disclosed_sample)
+        {
+            const auto disclosed_count = config.disclosed_first
+                + config.disclosed_interval * disclosed_sample;
+            const auto disclosed_indexes = indexes_span.first(disclosed_count);
+            (register_scheme_benchmarks(ac, attribute_count, disclosed_indexes), ...);
+        }
+    }
     benchmark::RunSpecifiedBenchmarks();
 }
 
@@ -308,25 +222,13 @@ cxxopts::Options make_options(BenchmarkConfig& config)
     options.add_options("General")
         ("help", "Print help");
 
-    options.add_options("Experiment 1")
-        ("exp1-disclosed", "Number of disclosed attributes", with_default(config.experiment1.n_disclosed))
-        ("exp1-start", "First total attribute count", with_default(config.experiment1.first))
-        ("exp1-step", "Sampling interval", with_default(config.experiment1.interval))
-        ("exp1-samples", "Number of samples", with_default(config.experiment1.samples));
-
-    options.add_options("Experiment 2")
-        ("exp2-total", "Fixed total attribute count", with_default(config.experiment2.n_attributes))
-        ("exp2-start", "First disclosed attribute count", with_default(config.experiment2.first))
-        ("exp2-step", "Sampling interval", with_default(config.experiment2.interval))
-        ("exp2-samples", "Number of samples", with_default(config.experiment2.samples));
-
-    options.add_options("Experiment 3")
-        ("exp3-total-start", "First total attribute count", with_default(config.experiment3.attributes_first))
-        ("exp3-total-step", "Total attribute sampling interval", with_default(config.experiment3.attributes_interval))
-        ("exp3-total-samples", "Number of total attribute samples", with_default(config.experiment3.attributes_samples))
-        ("exp3-disclosed-start", "First disclosed attribute count", with_default(config.experiment3.disclosed_first))
-        ("exp3-disclosed-step", "Disclosed attribute sampling interval", with_default(config.experiment3.disclosed_interval))
-        ("exp3-disclosed-samples", "Number of disclosed attribute samples", with_default(config.experiment3.disclosed_samples));
+    options.add_options("Sampling")
+        ("total-start", "First total attribute count", with_default(config.attributes_first))
+        ("total-step", "Total attribute sampling interval", with_default(config.attributes_interval))
+        ("total-samples", "Number of total attribute samples", with_default(config.attributes_samples))
+        ("disclosed-start", "First disclosed attribute count", with_default(config.disclosed_first))
+        ("disclosed-step", "Disclosed attribute sampling interval", with_default(config.disclosed_interval))
+        ("disclosed-samples", "Number of disclosed attribute samples", with_default(config.disclosed_samples));
 
     return options;
 }
