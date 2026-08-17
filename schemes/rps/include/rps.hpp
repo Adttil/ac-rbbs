@@ -41,8 +41,6 @@ namespace anonymous_credentials
 
         struct Signature : serialized_field<G1^2, G2> {};
 
-        struct PresCache : serialized_field<G2> {};
-
         struct PresProof : serialized_field<G1^4, G2, Zp^2> {};
 
         static constexpr std::string_view name()
@@ -68,25 +66,6 @@ namespace anonymous_credentials
             std::span<const serialized_field<Zp>> attr,
             const Signature& sig,
             std::span<const size_t> I,
-            std::string_view m,
-            const PublicKey& pk,
-            RandomEngine& random
-        );
-
-        static PresCache preprocess(
-            const UserSecretKey& usk,
-            std::span<const serialized_field<Zp>> attr,
-            const Signature& sig,
-            std::span<const size_t> I,
-            const PublicKey& pk
-        );
-
-        static PresProof pres(
-            const UserSecretKey& usk,
-            std::span<const serialized_field<Zp>> attr,
-            const Signature& sig,
-            std::span<const size_t> I,
-            const PresCache& cache,
             std::string_view m,
             const PublicKey& pk,
             RandomEngine& random
