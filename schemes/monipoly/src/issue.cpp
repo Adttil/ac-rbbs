@@ -59,7 +59,7 @@ namespace anonymous_credentials
 
         auto e = hash(pk.fixed_part, pk.a, pk.tilde_a, upk, M, R).to(Zp);
         auto m_hat = (m_tilde[i] + e * k[i]) (i.in[k.size()]);
-        auto s1_hat = (s1_tilde + e * s1).normalize();
+        auto s1_hat = (s1_tilde + e * s1);
 
         auto L = Π[k.size()](A[i]^m_hat[i]) * (b^s1_hat);
         if(L != R * ((M / Z)^e))
@@ -69,8 +69,8 @@ namespace anonymous_credentials
 
         auto t = random-select_in<*Zp>;
         auto s2 = random-select_in<*Zp>;
-        auto v = (M * (b^s2) * c)^inverse((x + t).normalize());
-        auto s = (s1 + s2).normalize();
+        auto v = (M * (b^s2) * c)^inverse(x + t);
+        auto s = s1 + s2;
 
         if(pair(v, tiled_X * (tiled_g^t)) != pair(C * Z * (b^s) * c, tiled_g))
         {

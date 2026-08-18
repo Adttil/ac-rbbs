@@ -29,7 +29,7 @@ namespace anonymous_credentials
 
             keys.pk.a[i] = serialize(a0^x_power);
             keys.pk.tilde_a[i] = serialize(tiled_g^x_power);
-            self((x_power * x_prime).normalize(), i + 1uz);
+            self(x_power * x_prime, i + 1uz);
         }(make_Zp(1u));
 
         return keys;
