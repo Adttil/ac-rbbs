@@ -11,7 +11,7 @@ namespace anonymous_credentials
         auto tilde_X = tilde_g^x;
 
         Keys keys{
-            .sk = serialize(x, y),
+            .sk = serialize(x),
             .pk = {
                 .fixed_part = serialize(g, tilde_g, tilde_X),
                 .Y{ 2uz * n + 1uz },
@@ -28,7 +28,14 @@ namespace anonymous_credentials
             {
                 keys.pk.tilde_Y[i] = serialize(tilde_g^yn);
             }
-            keys.pk.Y[i] = serialize(g^yn);
+            if(i == n + 1uz)
+            {
+                keys.pk.Y[i] = serialize(g);
+            }
+            else
+            {
+                keys.pk.Y[i] = serialize(g^yn);
+            }
             self(yn * y, i + 1uz);
         }(y);
 

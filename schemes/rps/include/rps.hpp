@@ -14,7 +14,7 @@ namespace anonymous_credentials
 
     struct RPS
     {
-        struct PrivateKey : serialized_field<Zp^2> {};
+        struct PrivateKey : serialized_field<Zp> {};
 
         struct UserSecretKey : serialized_field<Zp> {};
 
