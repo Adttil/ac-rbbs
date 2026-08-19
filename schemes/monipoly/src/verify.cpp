@@ -47,7 +47,7 @@ namespace anonymous_credentials
         auto [v_, V, W, Y, D, T_z, s_r, s_y, s_ty, s_s, s_theta] = parse<G1^6|Zp^5>(proof);
         auto e = hash(m, pk.fixed_part, v_, V, W, Y, D, T_z, I, a[i](i.in(I))).to(Zp);
 
-        auto D_e = D^e;
+        auto D_e = (D^e).G1_point();
         auto L = (D_e * (b^s_s) * (c^s_r) * (v_^s_ty)) / Y;
         auto R = (v_^s_y) / V;
 

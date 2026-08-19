@@ -64,14 +64,14 @@ namespace anonymous_credentials
             auto [r, y, tilde_r, tilde_y, tilde_ty, tilde_s, tilde_theta] = random-select_in<*Zp^7>;
 
             auto r_over_y = (r * inverse(y));
-            auto v_ = v^r_over_y;
+            auto v_ = (v^r_over_y).G1_point();
 
-            auto W = W0^r;
-            auto V = v_^tilde_y;
+            auto W = (W0^r).G1_point();
+            auto V = (v_^tilde_y).G1_point();
             auto Y = (b^tilde_s) * (c^tilde_r) * (v_^tilde_ty);
             auto theta = (r * z);
-            auto D = u^theta;
-            auto T_z = u^tilde_theta;
+            auto D = (u^theta).G1_point();
+            auto T_z = (u^tilde_theta).G1_point();
 
             auto e = hash(m, fixed_part, v_, V, W, Y, D, T_z, I, a[i](i.in(I))).to(Zp);
             auto s_r = (tilde_r + e * r);

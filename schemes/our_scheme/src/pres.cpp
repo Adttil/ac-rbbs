@@ -22,7 +22,7 @@ namespace anonymous_credentials
         {
             const size_t n = a.size();
             auto alpha = hash(a[i]).to(Zp) (i.in[n]) | materialize;
-            auto Z = u^z;
+            auto Z = (u^z).G1_point();
             auto I = indexes | algebraic;
             std::vector<size_t> II(n, I.size());
             for(size_t ii = 0uz; ii < I.size(); ++ii)
@@ -79,10 +79,10 @@ namespace anonymous_credentials
         )
         {
             auto r = random-select_in<Zp>;
-            auto A_ = A^r;
-            auto B_ = B^r;
-            auto C_J_ = C_J^r;
-            auto D_ = D^r;
+            auto A_ = (A^r).G1_point();
+            auto B_ = (B^r).G1_point();
+            auto C_J_ = (C_J^r).G1_point();
+            auto D_ = (D^r).G1_point();
 
             auto [alpha, beta, gamma] = random-select_in<Zp^3>;
             auto U = (u^gamma) * (C_I^alpha) * (A_^beta);

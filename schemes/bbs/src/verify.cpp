@@ -13,7 +13,7 @@ namespace anonymous_credentials
     {
         auto [g, tilde_g, tilde_X] = parse<G1|G2^2>(pk.fixed_part);
         auto Y = parse<G1>(pk.Y);
-        auto a = parse<Zp>(attr) | materialize;
+        auto a = parse<Zp>(attr);
         const size_t n = a.size();
         auto [A_, B_, U, s, t, s_z] = parse<G1^3|Zp^3>(proof.fixed_part);
         auto u = parse<Zp>(proof.u);

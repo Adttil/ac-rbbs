@@ -36,7 +36,7 @@ namespace anonymous_credentials
         auto [r, t, rho] = random-select_in<Zp^3>;
 
         auto tilde_H = tilde_M / Π[i.in(I)](tilde_Y[i]^a[i]);
-        auto sigma1_ = h^r;
+        auto sigma1_ = (h^r).G1_point();
         auto sigma2_ = (sigma^r) * (sigma1_^t);
         auto tilde_sigma_ = (tilde_g^t) * tilde_H;
 
@@ -70,7 +70,7 @@ namespace anonymous_credentials
             | transform([](auto&& sigma3_factor){ return sigma3_factor.value(); });
         auto sigma3_ = Π(sigma3_factors);
 
-        auto C = sigma1_^z;
+        auto C = (sigma1_^z).G1_point();
         auto C0 = sigma1_^rho;
         auto c0 = hash(m, sigma1_, sigma2_, sigma3_, C, tilde_sigma_, C0).to(Zp);
         auto s0 = rho + -c0*z;
