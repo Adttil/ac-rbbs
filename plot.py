@@ -8,6 +8,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Patch
+from matplotlib.ticker import FuncFormatter
 from matplotlib.transforms import Bbox
 
 
@@ -231,9 +232,9 @@ def save_plot(figure, output, filename):
     figure.canvas.draw()
     tight_bbox = figure.get_tightbbox(figure.canvas.get_renderer())
     bbox = Bbox.from_extents(
-        tight_bbox.x0 - 0.05,
+        tight_bbox.x0 + 0.1,
         tight_bbox.y0 + 0.45,
-        tight_bbox.x1,
+        tight_bbox.x1 + 0.15,
         tight_bbox.y1,
     )
     figure.savefig(
@@ -309,14 +310,24 @@ def plot_surfaces(output, filename, attributes, disclosed, series):
 
     axes.set_xticks(attributes)
     axes.set_yticks(disclosed)
+    axes.set_xlim(0, attributes[-1])
+    axes.set_ylim(0, disclosed[-1])
     axes.set_zlim(bottom=0)
+    axes.zaxis.set_major_formatter(
+        FuncFormatter(lambda value, _: "" if value == 0 else f"{value:g}")
+    )
+    axes.zaxis._axinfo["juggled"] = (1, 2, 0)
     remove_legacy_3d_axis_padding(axes)
     axes.set_xlabel("total attributes count")
     axes.set_ylabel("disclosed attributes count")
     axes.set_zlabel("time cost (ms)")
     axes.set_proj_type("ortho")
     axes.view_init(elev=20, azim=-127.5)
-    axes.legend(handles=handles + online_handles, loc="best")
+    axes.legend(
+        handles=handles + online_handles,
+        loc="best",
+        bbox_to_anchor=(0, 0, 1.055, 1),
+    )
     save_plot(figure, output, filename)
 
 
