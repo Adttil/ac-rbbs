@@ -24,11 +24,14 @@ namespace anonymous_credentials
         auto z = parse<Zp>(usk);
         
         auto I = indexes | algebraic;
-        auto J = sequence(n) | filter([&](size_t i){ return not std::ranges::contains(I, i); });
-        
         std::vector<size_t> I_plus(indexes.begin(), indexes.end());
         I_plus.push_back(n);
         auto Ip = I_plus | algebraic;
+        std::vector<size_t> II(n + 1uz, Ip.size());
+        for(size_t ii = 0uz; ii < Ip.size(); ++ii)
+        {
+            II[Ip[ii]] = ii;
+        }
 
         auto [r, t, rho] = random-select_in<Zp^3>;
 
@@ -37,25 +40,35 @@ namespace anonymous_credentials
         auto sigma2_ = (sigma^r) * (sigma1_^t);
         auto tilde_sigma_ = (tilde_g^t) * tilde_H;
 
-        auto q = hash(sigma1_, sigma2_, tilde_sigma_, indexes, a[j](j.in(I)), i)
-            .to(Zp) (i.in(Ip)) | materialize;
+        auto q = hash(sigma1_, sigma2_, tilde_sigma_, indexes, a[j](j.in(I)), i).to(Zp) (i.in(Ip))
+            | materialize;
 
-        auto sigma3_fixed = Π[i.in[I_plus.size()]](Y[n - Ip[i]]^(t * q[i]));
-        auto sigma3_cross_terms = sequence(2uz * n + 1uz)
+        auto sigma3_factors = sequence(2uz * n + 1uz)
             | std::views::transform([&](size_t k){
-                auto valid_ii = sequence(I_plus.size())
+                const size_t fixed_ii = k <= n ? II[n - k] : Ip.size();
+                const auto cross_ii = sequence(Ip.size())
                     | filter([&](size_t ii){
-                        return std::ranges::contains(J, k + I_plus[ii] - n - 1uz);
+                        const size_t j = k + Ip[ii] - n - 1uz;
+                        return j < n && II[j] == Ip.size();
                     });
-                if(not valid_ii.empty())
+                auto get_cross = [&](){ return Σ[i.in(cross_ii)](q[i] * a[k + Ip[i] - n - 1uz]); };
+                if(fixed_ii == Ip.size())
                 {
-                    return std::make_optional(Y[k]^Σ[i.in(valid_ii)](q[i] * a[k + Ip[i] - n - 1uz]));
+                    if(cross_ii.empty())
+                    {
+                        return decltype(std::make_optional(Y[k]^get_cross())){ std::nullopt };
+                    }
+                    return std::make_optional(Y[k]^get_cross());
                 }
-                return decltype(std::make_optional(Y[k]^Σ[i.in(valid_ii)](q[i] * a[k + Ip[i] - n - 1uz]))){ std::nullopt };
+                if(cross_ii.empty())
+                {
+                    return std::make_optional(Y[k]^(t * q[fixed_ii]).normalize());
+                }
+                return std::make_optional(Y[k]^(t * q[fixed_ii] + get_cross()).normalize());
             })
-            | std::views::filter([](auto&& Yk){ return Yk.has_value(); })
-            | transform([](auto&& Yk){ return Yk.value(); });
-        auto sigma3_ = sigma3_fixed * Π(sigma3_cross_terms);
+            | filter([](auto&& sigma3_factor){ return sigma3_factor.has_value(); })
+            | transform([](auto&& sigma3_factor){ return sigma3_factor.value(); });
+        auto sigma3_ = Π(sigma3_factors);
 
         auto C = sigma1_^z;
         auto C0 = sigma1_^rho;
