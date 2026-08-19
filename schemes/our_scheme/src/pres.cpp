@@ -24,28 +24,44 @@ namespace anonymous_credentials
             auto alpha = hash(a[i]).to(Zp) (i.in[n]) | materialize;
             auto Z = u^z;
             auto I = indexes | algebraic;
-            auto J = sequence(n) | filter([&](size_t i){ return not std::ranges::contains(I, i); });
+            std::vector<size_t> II(n, I.size());
+            for(size_t ii = 0uz; ii < I.size(); ++ii)
+            {
+                II[I[ii]] = ii;
+            }
 
             auto C_I = h * Π[i.in(I)](Y[n + i + 2uz]^alpha[i]);
             auto B = Z * C_I * (A^-w);
             auto C_J = C / (Z * C_I);
             auto q = hash(C_I, i).to(Zp) (i.in(I)) | materialize;
 
-            auto D_fixed = Π[i.in[I.size()]](Y[n - I[i] - 1uz]^q[i]);
-            auto Yks = sequence(2uz * n + 2uz)
+            auto D_factors = sequence(2uz * n)
                 | std::views::transform([&](size_t k){
-                    auto valid_ii = sequence(I.size())
-                        | filter([&](size_t ii){ return k != n && std::ranges::contains(J, k - n + I[ii]); });
-                    if(not valid_ii.empty())
+                    const size_t fixed_ii = k < n ? II[n - k - 1uz] : I.size();
+                    const auto cross_ii = sequence(I.size())
+                        | filter([&](size_t ii){
+                            const size_t j = k + I[ii] - n;
+                            return j < n && II[j] == I.size();
+                        });
+                    auto get_cross = [&](){ return Σ[i.in(cross_ii)](q[i] * alpha[k + I[i] - n]); };
+                    if(fixed_ii == I.size())
                     {
-                        return std::make_optional(Y[k]^Σ[i.in(valid_ii)](q[i] * alpha[k - n + I[i]]));
+                        if(cross_ii.empty())
+                        {
+                            return decltype(std::make_optional(Y[k]^get_cross())){ std::nullopt };
+                        }
+                        return std::make_optional(Y[k]^get_cross());
                     }
-                    return decltype(std::make_optional(Y[k]^Σ[i.in(valid_ii)](q[i] * alpha[k - n + I[i]]))){ std::nullopt };
+                    if(cross_ii.empty())
+                    {
+                        return std::make_optional(Y[k]^auto{ q[fixed_ii] });
+                    }
+                    return std::make_optional(Y[k]^(q[fixed_ii] + get_cross()).normalize());
                 })
-                | std::views::filter([](auto&& Yk){ return Yk.has_value(); })
-                | transform([](auto&& Yk){ return Yk.value(); });
+                | filter([](auto&& D_factor){ return D_factor.has_value(); })
+                | transform([](auto&& D_factor){ return D_factor.value(); });
 
-            auto D = D_fixed * Π(Yks);
+            auto D = Π(D_factors);
             return std::tuple{ C_I, C_J, B, D };
         }
 
