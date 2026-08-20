@@ -5,15 +5,6 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-import matplotlib.pyplot as plt
-import numpy as np
-from matplotlib.patches import Patch
-from matplotlib.ticker import FuncFormatter
-from matplotlib.transforms import Bbox
-
-
-plt.rcParams["pdf.fonttype"] = 42
-
 TIME_UNIT_TO_MILLISECONDS = {
     "ns": 1e-6,
     "us": 1e-3,
@@ -125,6 +116,7 @@ def load_benchmarks(source, time_type):
 
     iterations = defaultdict(list)
     aggregate_means = defaultdict(list)
+    time_field = f"{time_type}_time"
     for benchmark in document["benchmarks"]:
         name = benchmark.get("run_name", benchmark.get("name", ""))
         key = parse_benchmark_name(name)
@@ -139,7 +131,6 @@ def load_benchmarks(source, time_type):
         time_unit = benchmark.get("time_unit")
         if time_unit not in TIME_UNIT_TO_MILLISECONDS:
             raise ValueError(f"unsupported time unit for {name}: {time_unit}")
-        time_field = f"{time_type}_time"
         if time_field not in benchmark:
             raise ValueError(f"benchmark has no {time_type} time: {name}")
 
@@ -171,6 +162,8 @@ def get_schemes(benchmarks, operation):
 
 
 def load_surfaces(benchmarks, operation):
+    import numpy as np
+
     schemes = get_schemes(benchmarks, operation)
     if not schemes:
         return None
@@ -216,6 +209,8 @@ def load_surfaces(benchmarks, operation):
 
 
 def get_colors(count):
+    import matplotlib.pyplot as plt
+
     if count <= 10:
         colormap = plt.get_cmap("tab10")
         return [colormap(index) for index in range(count)]
@@ -228,6 +223,9 @@ def get_colors(count):
 
 
 def save_plot(figure, output, filename):
+    import matplotlib.pyplot as plt
+    from matplotlib.transforms import Bbox
+
     figure.tight_layout()
     figure.canvas.draw()
     tight_bbox = figure.get_tightbbox(figure.canvas.get_renderer())
@@ -247,6 +245,8 @@ def save_plot(figure, output, filename):
 
 
 def remove_legacy_3d_axis_padding(axes):
+    import numpy as np
+
     if not inspect.signature(axes.zaxis._get_coord_info).parameters:
         return
 
@@ -279,6 +279,12 @@ def remove_legacy_3d_axis_padding(axes):
 
 
 def plot_surfaces(output, filename, attributes, disclosed, series):
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from matplotlib.patches import Patch
+    from matplotlib.ticker import FuncFormatter
+
+    plt.rcParams["pdf.fonttype"] = 42
     attribute_grid, disclosed_grid = np.meshgrid(attributes, disclosed)
 
     figure = plt.figure(figsize=(9, 6.5))
