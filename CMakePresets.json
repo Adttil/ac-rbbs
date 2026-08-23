@@ -1,0 +1,22 @@
+{
+    "version": 3,
+
+    "configurePresets": [
+        {
+            "name": "_options-base",
+            "hidden": true,
+            "cacheVariables": {
+                "CRYPTO12381_INCLUDE_EXAMPLES": false,
+                "BENCHMARK_ENABLE_TESTING": false,
+                "BENCHMARK_ENABLE_GTEST_TESTS": false,
+                "BENCHMARK_ENABLE_INSTALL": false,
+                "BENCHMARK_ENABLE_WERROR": false
+            }
+        },
+
+        {
+            "name": "only-benchmark",
+            "inherits": "_options-base"
+        }
+    ]
+}

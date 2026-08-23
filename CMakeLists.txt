@@ -5,11 +5,9 @@ project(anonymous_credential_experiment LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(FetchContent)
 
-set(CRYPTO12381_INCLUDE_EXAMPLES OFF CACHE BOOL "Build crypto12381 examples" FORCE)
 FetchContent_Declare(
     crypto12381
     GIT_REPOSITORY https://github.com/Adttil/crypto12381.git
@@ -26,10 +24,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(cxxopts)
 
-set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "Build Google Benchmark tests" FORCE)
-set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "Build Google Benchmark GoogleTest tests" FORCE)
-set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "Install Google Benchmark" FORCE)
-set(BENCHMARK_ENABLE_WERROR OFF CACHE BOOL "Treat Google Benchmark warnings as errors" FORCE)
 FetchContent_Declare(
     google_benchmark
     GIT_REPOSITORY https://github.com/google/benchmark.git

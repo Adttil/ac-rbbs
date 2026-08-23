@@ -1,3 +1,7 @@
+# Build
 /out/
 /build/
-/CMakePresets.json
+
+# CMake
+/CMakeUserPresets.json
+/compile_commands.json
