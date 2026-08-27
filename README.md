@@ -90,7 +90,7 @@ A three-dimensional surface plot of the verification cost.
 
 ### `pres.pdf`
 
-A three-dimensional surface plot of the presentation cost. Cacheable schemes include both the complete presentation cost and the online cost using a presentation cache.
+A three-dimensional surface plot of the presentation cost.
 
 ## Dependencies
 

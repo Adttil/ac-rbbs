@@ -41,23 +41,6 @@ concept anonymous_credential = requires(
     { ac.verify(attr, I, m, proof, pk) } -> std::same_as<bool>;
 };
 
-template<typename AC>
-concept cacheable_anonymous_credential = anonymous_credential<AC> && requires(
-    const AC& ac,
-    crypto12381::RandomEngine& random,
-    const typename AC::PublicKey& pk,
-    const typename AC::UserSecretKey& usk,
-    std::span<const crypto12381::serialized_field<crypto12381::Zp>> attr,
-    std::span<const size_t> I,
-    std::string_view m,
-    const typename AC::Signature& sig,
-    const typename AC::PresCache& cache
-)
-{
-    { ac.preprocess(usk, attr, sig, I, pk) } -> std::same_as<typename AC::PresCache>;
-    { ac.pres(usk, attr, sig, I, cache, m, pk, random) } -> std::same_as<typename AC::PresProof>;
-};
-
 struct BenchmarkConfig
 {
     size_t attributes_first = 10uz;
@@ -114,52 +97,6 @@ void register_scheme_benchmarks(
             benchmark::DoNotOptimize(proof);
         }
     })->Unit(benchmark::kMicrosecond);
-
-    if constexpr(cacheable_anonymous_credential<AC>)
-    {
-        const auto preprocess_name = prefix + "/preprocess" + parameters;
-        benchmark::RegisterBenchmark(preprocess_name.c_str(), [=, &ac](benchmark::State& state)
-        {
-            auto random = crypto12381::create_random_engine("seed");
-            const auto keys = ac.keygen(n, random);
-            const auto& [sk, pk] = keys;
-            const auto attr = ac.generate_attributes(pk, n, random);
-            const auto [usk, upk] = ac.user_keygen(pk, random);
-            const auto sig = ac.issue(keys, upk, attr, random);
-
-            for(auto _ : state)
-            {
-                auto cache = ac.preprocess(usk, attr, sig, I, pk);
-                benchmark::DoNotOptimize(cache);
-            }
-        })->Unit(benchmark::kMicrosecond);
-
-        const auto pres_with_cache_name = prefix + "/pres_with_cache" + parameters;
-        benchmark::RegisterBenchmark(pres_with_cache_name.c_str(), [=, &ac](benchmark::State& state)
-        {
-            auto random = crypto12381::create_random_engine("seed");
-            const auto keys = ac.keygen(n, random);
-            const auto& [sk, pk] = keys;
-            const auto attr = ac.generate_attributes(pk, n, random);
-            const auto [usk, upk] = ac.user_keygen(pk, random);
-            const auto sig = ac.issue(keys, upk, attr, random);
-            const auto cache = ac.preprocess(usk, attr, sig, I, pk);
-
-            constexpr std::string_view m = "anonymous credential benchmark";
-            const auto proof = ac.pres(usk, attr, sig, I, cache, m, pk, random);
-            if(not ac.verify(attr, I, m, proof, pk))
-            {
-                state.SkipWithError("verification failed");
-                return;
-            }
-
-            for(auto _ : state)
-            {
-                auto result = ac.pres(usk, attr, sig, I, cache, m, pk, random);
-                benchmark::DoNotOptimize(result);
-            }
-        })->Unit(benchmark::kMicrosecond);
-    }
 
     const auto verify_name = prefix + "/verify" + parameters;
     benchmark::RegisterBenchmark(verify_name.c_str(), [=, &ac](benchmark::State& state)

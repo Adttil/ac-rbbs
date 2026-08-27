@@ -290,26 +290,21 @@ def plot_surfaces(output, filename, attributes, disclosed, series):
     figure = plt.figure(figsize=(9, 6.5))
     axes = figure.add_subplot(projection="3d")
     handles = []
-    online_handles = []
-    for label, values, color, online in series:
-        alpha = 0.4 if online else 0.65
-        hatch = "//" if online else None
+    for label, values, color in series:
         axes.plot_surface(
             attribute_grid,
             disclosed_grid,
             values,
             color=color,
-            alpha=alpha,
+            alpha=0.65,
             linewidth=0.4,
             edgecolor=color,
-            hatch=hatch,
         )
-        (online_handles if online else handles).append(
+        handles.append(
             Patch(
                 facecolor=color,
                 edgecolor=color,
-                alpha=alpha,
-                hatch=hatch,
+                alpha=0.65,
                 label=label,
             )
         )
@@ -330,7 +325,7 @@ def plot_surfaces(output, filename, attributes, disclosed, series):
     axes.set_proj_type("ortho")
     axes.view_init(elev=20, azim=-127.5)
     axes.legend(
-        handles=handles + online_handles,
+        handles=handles,
         loc="best",
         bbox_to_anchor=(0, 0, 1.055, 1),
     )
@@ -348,7 +343,7 @@ def plot_benchmarks(benchmarks, output):
             attributes,
             disclosed,
             [
-                (scheme, surfaces[scheme], colors[index], False)
+                (scheme, surfaces[scheme], colors[index])
                 for index, scheme in enumerate(schemes)
             ],
         )
@@ -359,39 +354,15 @@ def plot_benchmarks(benchmarks, output):
 
     schemes, attributes, disclosed, surfaces = presentations
     colors = get_colors(len(schemes))
-    online = load_surfaces(benchmarks, "pres_with_cache")
-    online_surfaces = {}
-    if online is not None:
-        online_schemes, online_attributes, online_disclosed, online_surfaces = online
-        if online_attributes != attributes or online_disclosed != disclosed:
-            raise ValueError(
-                "pres_with_cache has sample points inconsistent with pres"
-            )
-        extra_schemes = [scheme for scheme in online_schemes if scheme not in schemes]
-        if extra_schemes:
-            raise ValueError(
-                f"pres_with_cache has schemes missing from pres: {extra_schemes}"
-            )
-
-    series = []
-    for index, scheme in enumerate(schemes):
-        series.append((scheme, surfaces[scheme], colors[index], False))
-        if scheme in online_surfaces:
-            series.append(
-                (
-                    f"{scheme} Online",
-                    online_surfaces[scheme],
-                    colors[index],
-                    True,
-                )
-            )
-
     plot_surfaces(
         output,
         "pres.pdf",
         attributes,
         disclosed,
-        series,
+        [
+            (scheme, surfaces[scheme], colors[index])
+            for index, scheme in enumerate(schemes)
+        ],
     )
 
 
