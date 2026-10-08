@@ -22,11 +22,11 @@ namespace anonymous_credentials
         auto C_I = h * Π[i.in(I)](Y[n + i + 2uz]^a[i]);
         auto c = hash(m, C_I, A_, B_, C_J_, D_, U).to(Zp);
         auto q = hash(C_I, C_J_, indexes, i).to(Zp) (i.in(I));
-        auto Q_I = Π[i.in[I.size()]](tilde_Y[n - 1uz - I[i]]^q[i]);
 
         return
-            pair(A_, tilde_X) * pair(C_J_^c, Q_I) == pair(B_ * C_J_ * (D_^c), tilde_g)
+            U * (B_^c) == (u^s_z) * (C_I^s_r) * (A_^s_w)
             &&
-            U * (B_^c) == (u^s_z) * (C_I^s_r) * (A_^s_w);
+            pair(A_, tilde_X) * pair(C_J_^c, Π[i.in[I.size()]](tilde_Y[n - 1uz - I[i]]^q[i])) 
+                == pair(B_ * C_J_ * (D_^c), tilde_g);
     }
 }
