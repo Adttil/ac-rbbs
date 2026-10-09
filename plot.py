@@ -291,20 +291,35 @@ def plot_surfaces(output, filename, attributes, disclosed, series):
     axes = figure.add_subplot(projection="3d")
     handles = []
     for label, values, color in series:
+        face_color = (*color[:3], 0.30)
+        line_rgb = tuple(component * 0.75 for component in color[:3])
         axes.plot_surface(
             attribute_grid,
             disclosed_grid,
             values,
-            color=color,
-            alpha=0.65,
-            linewidth=0.4,
-            edgecolor=color,
+            color=face_color,
+            linewidth=0.5,
+            edgecolor=(*line_rgb, 0.35),
         )
+        # Draw the perimeter above the surfaces so the rear edges stay visible.
+        for edge in (
+            (0, slice(None)),
+            (-1, slice(None)),
+            (slice(None), 0),
+            (slice(None), -1),
+        ):
+            axes.plot(
+                attribute_grid[edge],
+                disclosed_grid[edge],
+                values[edge],
+                color=(*line_rgb, 0.95),
+                linewidth=1.2,
+                zorder=1000,
+            )
         handles.append(
             Patch(
-                facecolor=color,
-                edgecolor=color,
-                alpha=0.65,
+                facecolor=face_color,
+                edgecolor=(*line_rgb, 0.95),
                 label=label,
             )
         )
