@@ -1,5 +1,5 @@
-#ifndef ANONYMOUS_CREDENTIALS_OUR_SCHEME_HPP
-#define ANONYMOUS_CREDENTIALS_OUR_SCHEME_HPP
+#ifndef ANONYMOUS_CREDENTIALS_RBBS_HPP
+#define ANONYMOUS_CREDENTIALS_RBBS_HPP
 
 #include <cstddef>
 #include <span>
@@ -12,9 +12,9 @@ namespace anonymous_credentials
 {
     using namespace crypto12381;
 
-    struct OurScheme
+    struct RBBS
     {
-        struct PrivateKey : serialized_field<Zp^2> {};
+        struct PrivateKey : serialized_field<Zp> {};
 
         struct UserSecretKey : serialized_field<Zp> {};
 
@@ -41,11 +41,11 @@ namespace anonymous_credentials
 
         struct Signature : serialized_field<G1^2, Zp> {};
 
-        struct PresProof : serialized_field<G1^5, Zp^3> {};
+        struct PresProof : serialized_field<G1^4, Zp^4> {};
 
         static constexpr std::string_view name()
         {
-            return "Our scheme";
+            return "RBBS";
         }
 
         static Keys keygen(size_t n, RandomEngine& random);
@@ -80,7 +80,7 @@ namespace anonymous_credentials
         );
     };
 
-    inline constexpr OurScheme our_scheme{};
+    inline constexpr RBBS rbbs{};
 }
 
 #endif

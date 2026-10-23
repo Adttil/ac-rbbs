@@ -189,7 +189,7 @@ int main(int argc, char* argv[])
 
         validate(config);
 
-        run_benchmarks(config, ac::rps, ac::bbs, ac::monipoly, ac::our_scheme);
+        run_benchmarks(config, ac::rps, ac::bbs, ac::monipoly, ac::rbbs, ac::rbbs_star);
         benchmark::Shutdown();
         return 0;
     }

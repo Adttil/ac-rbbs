@@ -3,7 +3,8 @@
 
 #include <bbs.hpp>
 #include <monipoly.hpp>
-#include <our_scheme.hpp>
+#include <rbbs.hpp>
+#include <rbbs_star.hpp>
 #include <rps.hpp>
 
 #endif

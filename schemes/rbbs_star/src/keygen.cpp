@@ -1,15 +1,16 @@
 #include <crypto12381/crypto12381.hpp>
-#include <our_scheme.hpp>
+#include <rbbs_star.hpp>
 
 namespace anonymous_credentials
 {
-    OurScheme::Keys OurScheme::keygen(size_t n, RandomEngine& random)
+    RBBSStar::Keys RBBSStar::keygen(size_t n, RandomEngine& random)
     {
         auto g = random-select_in<*G1>;
         auto h = random-select_in<*G1>;
         auto u = random-select_in<*G1>;
         auto tilde_g = random-select_in<*G2>;
-        auto [x, y] = random-select_in<Zp^2>;
+        auto x = random-select_in<*Zp>;
+        auto y = random-select_in<*Zp>;
         auto tilde_X = tilde_g^x;
 
         Keys keys{
