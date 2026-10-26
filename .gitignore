@@ -5,3 +5,6 @@
 # CMake
 /CMakeUserPresets.json
 /compile_commands.json
+
+# Python
+__pycache__/
