@@ -37,7 +37,7 @@ namespace anonymous_credentials
         const auto uj = u_random[j] + rc*a[J[j]];
 
         return {
-            .fixed_part = serialize(A_, B_, U, s, t, s_z),
+            .fixed_part = serialize(A_, B_, c, s, t, s_z),
             .u = serialize(uj) (j.in[J.size()])
         };
     }

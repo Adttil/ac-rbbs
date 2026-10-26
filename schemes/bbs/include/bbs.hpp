@@ -42,7 +42,7 @@ namespace anonymous_credentials
 
         struct PresProof
         {
-            serialized_field<G1^3, Zp^3> fixed_part;
+            serialized_field<G1^2, Zp^4> fixed_part;
             std::vector<serialized_field<Zp>> u;
         };
 
