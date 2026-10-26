@@ -27,7 +27,6 @@ concept anonymous_credential = requires(
     const typename AC::UserSecretKey& usk,
     std::span<const crypto12381::serialized_field<crypto12381::Zp>> attr,
     std::span<const size_t> I,
-    std::string_view m,
     const typename AC::Signature& sig,
     const typename AC::PresProof& proof
 )
@@ -37,8 +36,8 @@ concept anonymous_credential = requires(
     { ac.user_keygen(pk, random) } -> std::same_as<typename AC::UserKeys>;
     { ac.generate_attributes(pk, n, random) } -> std::same_as<std::vector<crypto12381::serialized_field<crypto12381::Zp>>>;
     { ac.issue(keys, upk, attr, random) } -> std::same_as<typename AC::Signature>;
-    { ac.pres(usk, attr, sig, I, m, pk, random) } -> std::same_as<typename AC::PresProof>;
-    { ac.verify(attr, I, m, proof, pk) } -> std::same_as<bool>;
+    { ac.pres(usk, attr, sig, I, pk, random) } -> std::same_as<typename AC::PresProof>;
+    { ac.verify(attr, I, proof, pk) } -> std::same_as<bool>;
 };
 
 struct BenchmarkConfig
@@ -90,10 +89,9 @@ void register_scheme_benchmarks(
         const auto [usk, upk] = ac.user_keygen(pk, random);
         const auto sig = ac.issue(keys, upk, attr, random);
 
-        constexpr std::string_view m = "anonymous credential benchmark";
         for(auto _ : state)
         {
-            auto proof = ac.pres(usk, attr, sig, I, m, pk, random);
+            auto proof = ac.pres(usk, attr, sig, I, pk, random);
             benchmark::DoNotOptimize(proof);
         }
     })->Unit(benchmark::kMicrosecond);
@@ -108,9 +106,8 @@ void register_scheme_benchmarks(
         const auto [usk, upk] = ac.user_keygen(pk, random);
         const auto sig = ac.issue(keys, upk, attr, random);
 
-        constexpr std::string_view m = "anonymous credential benchmark";
-        const auto proof = ac.pres(usk, attr, sig, I, m, pk, random);
-        if(not ac.verify(attr, I, m, proof, pk))
+        const auto proof = ac.pres(usk, attr, sig, I, pk, random);
+        if(not ac.verify(attr, I, proof, pk))
         {
             state.SkipWithError("verification failed");
             return;
@@ -118,7 +115,7 @@ void register_scheme_benchmarks(
 
         for(auto _ : state)
         {
-            auto valid = ac.verify(attr, I, m, proof, pk);
+            auto valid = ac.verify(attr, I, proof, pk);
             benchmark::DoNotOptimize(valid);
         }
     })->Unit(benchmark::kMicrosecond);

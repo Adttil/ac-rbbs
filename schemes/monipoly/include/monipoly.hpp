@@ -68,7 +68,6 @@ namespace anonymous_credentials
             std::span<const serialized_field<Zp>> attr,
             const Signature& sig,
             std::span<const size_t> I,
-            std::string_view m,
             const PublicKey& pk,
             RandomEngine& random
         );
@@ -87,7 +86,6 @@ namespace anonymous_credentials
             const Signature& sig,
             std::span<const size_t> I,
             const PresCache& cache,
-            std::string_view m,
             const PublicKey& pk,
             RandomEngine& random
         );
@@ -95,7 +93,6 @@ namespace anonymous_credentials
         static bool verify(
             std::span<const serialized_field<Zp>> attr,
             std::span<const size_t> I,
-            std::string_view m,
             const PresProof& proof,
             const PublicKey& pk
         );

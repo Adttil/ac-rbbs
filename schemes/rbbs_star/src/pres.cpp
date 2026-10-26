@@ -10,7 +10,6 @@ namespace anonymous_credentials
         std::span<const serialized_field<Zp>> attr,
         const Signature& sig,
         std::span<const size_t> indexes,
-        std::string_view m,
         const PublicKey& pk,
         RandomEngine& random
     )
@@ -72,7 +71,7 @@ namespace anonymous_credentials
 
         const auto [alpha, beta, gamma, delta] = random-select_in<Zp^4>;
         const auto U = (u^gamma) * (C_I^alpha) * (A_^beta) * (Y[n + 1uz]^delta);
-        const auto c = hash(m, indexes, C_I, A_, B_, C_J_, D_, U).to(Zp);
+        const auto c = hash(indexes, C_I, A_, B_, C_J_, D_, U).to(Zp);
         const auto s_r = alpha + r*c;
         const auto s_w = beta + -w*c;
         const auto s_z = gamma + r*z*c;

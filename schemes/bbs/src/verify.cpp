@@ -6,7 +6,6 @@ namespace anonymous_credentials
     bool BBS::verify(
         std::span<const serialized_field<Zp>> attr,
         std::span<const size_t> I,
-        std::string_view m,
         const PresProof& proof,
         const PublicKey& pk
     )
@@ -20,7 +19,7 @@ namespace anonymous_credentials
         auto J = sequence(n) | filter([&](size_t i){ return not std::ranges::contains(I, i); });
 
         auto C_I = g * Π[i.in(I)](Y[i + 1uz]^a[i]);
-        auto c = hash(m, I, C_I, A_, B_, U).to(Zp);
+        auto c = hash(I, C_I, A_, B_, U).to(Zp);
 
         return
             pair(A_, tilde_X) == pair(B_, tilde_g)

@@ -10,7 +10,6 @@ namespace anonymous_credentials
         std::span<const serialized_field<Zp>> attr,
         const Signature& sig,
         std::span<const size_t> indexes,
-        std::string_view m,
         const PublicKey& pk,
         RandomEngine& random
     )
@@ -72,7 +71,7 @@ namespace anonymous_credentials
 
         auto C = (sigma1_^z).G1_point();
         auto C0 = sigma1_^rho;
-        auto c0 = hash(m, sigma1_, sigma2_, sigma3_, C, tilde_sigma_, C0).to(Zp);
+        auto c0 = hash(sigma1_, sigma2_, sigma3_, C, tilde_sigma_, C0).to(Zp);
         auto s0 = rho + -c0*z;
 
         return serialize(sigma1_, sigma2_, sigma3_, C, tilde_sigma_, c0, s0);

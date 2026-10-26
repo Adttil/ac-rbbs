@@ -33,7 +33,6 @@ namespace anonymous_credentials
     bool MoniPoly::verify(
         std::span<const serialized_field<Zp>> attr,
         std::span<const size_t> I,
-        std::string_view m,
         const PresProof& proof,
         const PublicKey& pk
     )
@@ -45,7 +44,7 @@ namespace anonymous_credentials
 
         auto [b, c, u, tilde_g, tilde_X] = parse<G1^3|G2^2>(pk.fixed_part);
         auto [v_, V, W, Y, D, T_z, s_r, s_y, s_ty, s_s, s_theta] = parse<G1^6|Zp^5>(proof);
-        auto e = hash(m, pk.fixed_part, v_, V, W, Y, D, T_z, I, a[i](i.in(I))).to(Zp);
+        auto e = hash(pk.fixed_part, v_, V, W, Y, D, T_z, I, a[i](i.in(I))).to(Zp);
 
         auto D_e = (D^e).G1_point();
         auto L = (D_e * (b^s_s) * (c^s_r) * (v_^s_ty)) / Y;

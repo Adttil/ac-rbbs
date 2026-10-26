@@ -8,7 +8,6 @@ namespace anonymous_credentials
         std::span<const serialized_field<Zp>> attr,
         const Signature& sig,
         std::span<const size_t> I,
-        std::string_view m,
         const PublicKey& pk,
         RandomEngine& random
     )
@@ -30,7 +29,7 @@ namespace anonymous_credentials
         const auto u_random = random-select_in<Zp>(J.size()) | materialize;
         const auto U = (C_I^alpha) * (A_^beta) * (Y[0]^gamma) * Π[j.in[J.size()]](Y[J[j] + 1uz]^u_random[j]);
 
-        const auto c = hash(m, I, C_I, A_, B_, U).to(Zp);
+        const auto c = hash(I, C_I, A_, B_, U).to(Zp);
         const auto rc = r*c;
         const auto s = alpha + rc;
         const auto t = beta + -w*c;

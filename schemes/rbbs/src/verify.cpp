@@ -6,7 +6,6 @@ namespace anonymous_credentials
     bool RBBS::verify(
         std::span<const serialized_field<Zp>> attr,
         std::span<const size_t> indexes,
-        std::string_view m,
         const PresProof& proof,
         const PublicKey& pk
     )
@@ -28,7 +27,7 @@ namespace anonymous_credentials
         auto q = hash(C_I, C_J_, indexes, i).to(Zp) (i.in(I));
 
         return
-            c == hash(m, indexes, C_I, A_, B_, C_J_, D_, U).to(Zp)
+            c == hash(indexes, C_I, A_, B_, C_J_, D_, U).to(Zp)
             &&
             pair(A_, tilde_X) * pair(C_J_^c, Π[i.in[I.size()]](tilde_Y[n - 1uz - I[i]]^q[i]))
                 == pair(B_ * C_J_ * (D_^c), tilde_g);

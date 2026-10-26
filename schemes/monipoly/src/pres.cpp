@@ -46,7 +46,6 @@ namespace anonymous_credentials
         }
 
         MoniPoly::PresProof pres_impl(
-            std::string_view m,
             const auto& a,
             std::span<const size_t> I,
             const auto& v,
@@ -73,7 +72,7 @@ namespace anonymous_credentials
             auto D = (u^theta).G1_point();
             auto T_z = (u^tilde_theta).G1_point();
 
-            auto e = hash(m, fixed_part, v_, V, W, Y, D, T_z, I, a[i](i.in(I))).to(Zp);
+            auto e = hash(fixed_part, v_, V, W, Y, D, T_z, I, a[i](i.in(I))).to(Zp);
             auto s_r = (tilde_r + e * r);
             auto s_y = (tilde_y + e * y);
             auto s_ty = (tilde_ty - e * t * y);
@@ -89,7 +88,6 @@ namespace anonymous_credentials
         std::span<const serialized_field<Zp>> attr,
         const Signature& sig,
         std::span<const size_t> I,
-        std::string_view m,
         const PublicKey& pk,
         RandomEngine& random
     )
@@ -101,7 +99,7 @@ namespace anonymous_credentials
         auto W0 = preprocess_impl(a, o, I, A);
         auto [b, c, u, tiled_g, tiled_X] = parse<G1^3|G2^2>(pk.fixed_part);
 
-        return pres_impl(m, a, I, v, t, s, W0, z, b, c, u, pk.fixed_part, random);
+        return pres_impl(a, I, v, t, s, W0, z, b, c, u, pk.fixed_part, random);
     }
 
     MoniPoly::PresCache MoniPoly::preprocess(
@@ -125,7 +123,6 @@ namespace anonymous_credentials
         const Signature& sig,
         std::span<const size_t> I,
         const PresCache& cache,
-        std::string_view m,
         const PublicKey& pk,
         RandomEngine& random
     )
@@ -136,6 +133,6 @@ namespace anonymous_credentials
         auto W0 = parse<G1>(cache);
         auto [b, c, u, tiled_g, tiled_X] = parse<G1^3|G2^2>(pk.fixed_part);
 
-        return pres_impl(m, a, I, v, t, s, W0, z, b, c, u, pk.fixed_part, random);
+        return pres_impl(a, I, v, t, s, W0, z, b, c, u, pk.fixed_part, random);
     }
 }

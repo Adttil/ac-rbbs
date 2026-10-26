@@ -7,7 +7,6 @@ namespace anonymous_credentials
     bool RPS::verify(
         std::span<const serialized_field<Zp>> attr,
         std::span<const size_t> indexes,
-        std::string_view m,
         const PresProof& proof,
         const PublicKey& pk
     )
@@ -30,7 +29,7 @@ namespace anonymous_credentials
             .to(Zp) (i.in(Ip));
 
         return
-            c0 == hash(m, sigma1_, sigma2_, sigma3_, C, tilde_sigma_, C0).to(Zp)
+            c0 == hash(sigma1_, sigma2_, sigma3_, C, tilde_sigma_, C0).to(Zp)
             &&
             pair(sigma1_, tilde_X * tilde_sigma_ * Π[i.in(I)](tilde_Y[i]^a[i])) * pair(C, tilde_Y[n])
             == pair(sigma2_, tilde_g)
