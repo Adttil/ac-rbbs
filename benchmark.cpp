@@ -1,7 +1,11 @@
+#include <algorithm>
 #include <concepts>
 #include <cstddef>
+#include <cstdint>
 #include <iostream>
 #include <numeric>
+#include <random>
+#include <set>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -48,11 +52,13 @@ struct BenchmarkConfig
     size_t disclosed_first = 1uz;
     size_t disclosed_interval = 1uz;
     size_t disclosed_samples = 10uz;
+    size_t disclosure_sets = 64uz;
+    std::uint64_t disclosure_seed = 0;
 };
 
 void validate(const BenchmarkConfig& config)
 {
-    if(config.attributes_samples == 0uz || config.disclosed_samples == 0uz)
+    if(config.attributes_samples == 0uz || config.disclosed_samples == 0uz || config.disclosure_sets == 0uz)
     {
         throw std::invalid_argument{ "sample counts must be positive" };
     }
@@ -69,18 +75,70 @@ void validate(const BenchmarkConfig& config)
     }
 }
 
+using DisclosureSets = std::vector<std::vector<size_t>>;
+
+DisclosureSets make_disclosure_sets(size_t n, size_t m, size_t count, std::uint64_t seed)
+{
+    std::mt19937_64 random(seed);
+    DisclosureSets sets;
+    std::vector<size_t> indexes(m);
+    std::iota(indexes.begin(), indexes.end(), 0uz);
+
+    // Use all combinations if the population fits in the requested pool.
+    for(;;)
+    {
+        sets.push_back(indexes);
+        size_t position = m;
+        while(position > 0uz && indexes[position - 1uz] == n - m + position - 1uz)
+        {
+            --position;
+        }
+        if(position == 0uz)
+        {
+            std::shuffle(sets.begin(), sets.end(), random);
+            return sets;
+        }
+        if(sets.size() == count)
+        {
+            break;
+        }
+        ++indexes[position - 1uz];
+        for(size_t i = position; i < m; ++i)
+        {
+            indexes[i] = indexes[i - 1uz] + 1uz;
+        }
+    }
+
+    // A shuffled prefix is a uniform subset; reject duplicate subsets.
+    sets.clear();
+    std::set<std::vector<size_t>> seen;
+    indexes.resize(n);
+    std::iota(indexes.begin(), indexes.end(), 0uz);
+    while(sets.size() < count)
+    {
+        std::shuffle(indexes.begin(), indexes.end(), random);
+        std::vector<size_t> selected(indexes.begin(), indexes.begin() + m);
+        std::ranges::sort(selected);
+        if(seen.insert(selected).second)
+        {
+            sets.push_back(std::move(selected));
+        }
+    }
+    return sets;
+}
+
 template<anonymous_credential AC>
 void register_scheme_benchmarks(
     const AC& ac,
     size_t n,
-    std::span<const size_t> I
+    const DisclosureSets& disclosure_sets
 )
 {
     const auto prefix = std::string{ ac.name() };
-    const auto parameters = "/attributes:" + std::to_string(n) + "/disclosed:" + std::to_string(I.size());
+    const auto parameters = "/attributes:" + std::to_string(n) + "/disclosed:" + std::to_string(disclosure_sets.front().size());
 
     const auto pres_name = prefix + "/pres" + parameters;
-    benchmark::RegisterBenchmark(pres_name.c_str(), [=, &ac](benchmark::State& state)
+    benchmark::RegisterBenchmark(pres_name.c_str(), [&, n](benchmark::State& state)
     {
         auto random = crypto12381::create_random_engine("seed");
         const auto keys = ac.keygen(n, random);
@@ -89,15 +147,20 @@ void register_scheme_benchmarks(
         const auto [usk, upk] = ac.user_keygen(pk, random);
         const auto sig = ac.issue(keys, upk, attr, random);
 
-        for(auto _ : state)
+        // Each complete traversal gives every disclosure set equal weight.
+        while(state.KeepRunningBatch(disclosure_sets.size()))
         {
-            auto proof = ac.pres(usk, attr, sig, I, pk, random);
-            benchmark::DoNotOptimize(proof);
+            for(const auto& I : disclosure_sets)
+            {
+                auto proof = ac.pres(usk, attr, sig, I, pk, random);
+                benchmark::DoNotOptimize(proof);
+            }
         }
+        state.counters["disclosure_sets"] = static_cast<double>(disclosure_sets.size());
     })->Unit(benchmark::kMicrosecond);
 
     const auto verify_name = prefix + "/verify" + parameters;
-    benchmark::RegisterBenchmark(verify_name.c_str(), [=, &ac](benchmark::State& state)
+    benchmark::RegisterBenchmark(verify_name.c_str(), [&, n](benchmark::State& state)
     {
         auto random = crypto12381::create_random_engine("seed");
         const auto keys = ac.keygen(n, random);
@@ -106,29 +169,39 @@ void register_scheme_benchmarks(
         const auto [usk, upk] = ac.user_keygen(pk, random);
         const auto sig = ac.issue(keys, upk, attr, random);
 
-        const auto proof = ac.pres(usk, attr, sig, I, pk, random);
-        if(not ac.verify(attr, I, proof, pk))
+        std::vector<typename AC::PresProof> proofs;
+        proofs.reserve(disclosure_sets.size());
+        for(const auto& I : disclosure_sets)
         {
-            state.SkipWithError("verification failed");
-            return;
+            proofs.push_back(ac.pres(usk, attr, sig, I, pk, random));
+            if(not ac.verify(attr, I, proofs.back(), pk))
+            {
+                state.SkipWithError("verification failed");
+                return;
+            }
         }
 
-        for(auto _ : state)
+        while(state.KeepRunningBatch(disclosure_sets.size()))
         {
-            auto valid = ac.verify(attr, I, proof, pk);
-            benchmark::DoNotOptimize(valid);
+            for(size_t i = 0uz; i < disclosure_sets.size(); ++i)
+            {
+                auto valid = ac.verify(attr, disclosure_sets[i], proofs[i], pk);
+                benchmark::DoNotOptimize(valid);
+            }
         }
+        state.counters["disclosure_sets"] = static_cast<double>(disclosure_sets.size());
     })->Unit(benchmark::kMicrosecond);
 }
 
 template<anonymous_credential...AC>
 void run_benchmarks(const BenchmarkConfig& config, const AC&...ac)
 {
-    const auto attributes_max = config.attributes_first
-        + config.attributes_interval * (config.attributes_samples - 1uz);
-    std::vector<size_t> indexes(attributes_max);
-    std::iota(indexes.begin(), indexes.end(), 0uz);
-    const auto indexes_span = std::span<const size_t>{ indexes };
+    benchmark::AddCustomContext("disclosure_sets_requested", std::to_string(config.disclosure_sets));
+    benchmark::AddCustomContext("disclosure_seed", std::to_string(config.disclosure_seed));
+
+    // Keep all pools alive and prevent reallocation while callbacks hold references.
+    std::vector<DisclosureSets> disclosure_pools;
+    disclosure_pools.reserve(config.attributes_samples * config.disclosed_samples);
 
     for(size_t attributes_sample = 0uz; attributes_sample < config.attributes_samples; ++attributes_sample)
     {
@@ -138,8 +211,10 @@ void run_benchmarks(const BenchmarkConfig& config, const AC&...ac)
         {
             const auto disclosed_count = config.disclosed_first
                 + config.disclosed_interval * disclosed_sample;
-            const auto disclosed_indexes = indexes_span.first(disclosed_count);
-            (register_scheme_benchmarks(ac, attribute_count, disclosed_indexes), ...);
+            disclosure_pools.push_back(make_disclosure_sets(
+                attribute_count, disclosed_count, config.disclosure_sets, config.disclosure_seed));
+            const auto& disclosure_sets = disclosure_pools.back();
+            (register_scheme_benchmarks(ac, attribute_count, disclosure_sets), ...);
         }
     }
     benchmark::RunSpecifiedBenchmarks();
@@ -162,7 +237,9 @@ cxxopts::Options make_options(BenchmarkConfig& config)
         ("total-samples", "Number of total attribute samples", with_default(config.attributes_samples))
         ("disclosed-start", "First disclosed attribute count", with_default(config.disclosed_first))
         ("disclosed-step", "Disclosed attribute sampling interval", with_default(config.disclosed_interval))
-        ("disclosed-samples", "Number of disclosed attribute samples", with_default(config.disclosed_samples));
+        ("disclosed-samples", "Number of disclosed attribute samples", with_default(config.disclosed_samples))
+        ("disclosure-sets", "Disclosure subsets per point (enumerate all if fewer exist)", with_default(config.disclosure_sets))
+        ("disclosure-seed", "Seed for disclosure subset sampling", with_default(config.disclosure_seed));
 
     return options;
 }

@@ -59,6 +59,8 @@ The benchmark samples the total and disclosed attribute counts as a two-dimensio
 | `--disclosed-start` | First disclosed attribute count | 1 |
 | `--disclosed-step` | Disclosed attribute sampling interval | 1 |
 | `--disclosed-samples` | Number of disclosed attribute samples | 10 |
+| `--disclosure-sets` | Distinct disclosure subsets sampled per grid point; use all if fewer exist | 64 |
+| `--disclosure-seed` | Random seed for disclosure subset sampling | 0 |
 
 The executable also accepts Google Benchmark options. The most relevant ones are:
 
