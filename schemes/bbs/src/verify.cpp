@@ -19,12 +19,13 @@ namespace anonymous_credentials
         auto u = parse<Zp>(proof.u);
         auto J = sequence(n) | filter([&](size_t i){ return not std::ranges::contains(I, i); });
 
-        auto c = hash(m, A_, B_, U).to(Zp);
+        auto C_I = g * Π[i.in(I)](Y[i + 1uz]^a[i]);
+        auto c = hash(m, I, C_I, A_, B_, U).to(Zp);
 
         return
             pair(A_, tilde_X) == pair(B_, tilde_g)
             &&
-            U * (B_^c) == ((g * Π[i.in(I)](Y[i + 1uz]^a[i]))^s)
+            U * (B_^c) == (C_I^s)
                 * (A_^t)
                 * (Y[0]^s_z)
                 * Π[j.in[J.size()]](Y[J[j] + 1uz]^u[j]);
