@@ -298,8 +298,9 @@ def plot_surfaces(output, filename, attributes, disclosed, series):
             disclosed_grid,
             values,
             color=face_color,
-            linewidth=0.5,
-            edgecolor=(*line_rgb, 0.35),
+            linewidth=0,
+            edgecolor="none",
+            antialiased=True,
         )
         # Draw the perimeter above the surfaces so the rear edges stay visible.
         for edge in (
