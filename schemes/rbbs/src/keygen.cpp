@@ -1,3 +1,5 @@
+#include <optional>
+
 #include <crypto12381/crypto12381.hpp>
 #include <rbbs.hpp>
 
@@ -25,25 +27,23 @@ namespace anonymous_credentials
         keys.pk.Y[n] = serialize(g);
         keys.pk.Y[n + 1uz] = serialize(g);
 
-        [&](this auto&& self, auto&& yn, size_t i = 0uz){
-            if(i >= n)
-            {
-                return;
-            }
-            keys.pk.Y[n + i + 2uz] = serialize(g^yn);
-            self(yn * y, i + 1uz);
-        }(y);
+        std::optional yn{ y };
+        for(size_t i = 0uz; i < n; ++i)
+        {
+            const auto& power = *yn;
+            keys.pk.Y[n + i + 2uz] = serialize(g^power);
+            yn.emplace((power * y).normalize());
+        }
 
         auto y_inv = inverse(y);
-        [&](this auto&& self, auto&& yn, size_t i = 0uz){
-            if(i >= n)
-            {
-                return;
-            }
-            keys.pk.Y[n - i - 1uz] = serialize(g^yn);
-            keys.pk.tilde_Y[n - 1uz - i] = serialize(tilde_g^yn);
-            self(yn * y_inv, i + 1uz);
-        }(y_inv * y_inv);
+        yn.emplace((y_inv * y_inv).normalize());
+        for(size_t i = 0uz; i < n; ++i)
+        {
+            const auto& power = *yn;
+            keys.pk.Y[n - i - 1uz] = serialize(g^power);
+            keys.pk.tilde_Y[n - 1uz - i] = serialize(tilde_g^power);
+            yn.emplace((power * y_inv).normalize());
+        }
 
         return keys;
     }

@@ -1,3 +1,5 @@
+#include <optional>
+
 #include <crypto12381/crypto12381.hpp>
 #include <rps.hpp>
 
@@ -19,14 +21,14 @@ namespace anonymous_credentials
             }
         };
 
-        [&](this auto&& self, auto&& yn, size_t i = 0uz){
-            if(i >= 2uz * n + 1uz)
-            {
-               return;
-            }
+        // Zp values are non-assignable; emplace advances the power without recursion.
+        std::optional yn{ y };
+        for(size_t i = 0uz; i < 2uz * n + 1uz; ++i)
+        {
+            const auto& power = *yn;
             if(i <= n)
             {
-                keys.pk.tilde_Y[i] = serialize(tilde_g^yn);
+                keys.pk.tilde_Y[i] = serialize(tilde_g^power);
             }
             if(i == n + 1uz)
             {
@@ -34,10 +36,10 @@ namespace anonymous_credentials
             }
             else
             {
-                keys.pk.Y[i] = serialize(g^yn);
+                keys.pk.Y[i] = serialize(g^power);
             }
-            self(yn * y, i + 1uz);
-        }(y);
+            yn.emplace((power * y).normalize());
+        }
 
         return keys;
     }

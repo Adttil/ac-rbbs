@@ -1,3 +1,5 @@
+#include <optional>
+
 #include <crypto12381/crypto12381.hpp>
 #include <monipoly.hpp>
 
@@ -20,17 +22,14 @@ namespace anonymous_credentials
             }
         };
 
-        [&](this auto&& self, auto&& x_power, size_t i = 0uz) -> void
+        std::optional x_power{ make_Zp(1u) };
+        for(size_t i = 0uz; i < n + 2uz; ++i)
         {
-            if(i >= n + 2uz)
-            {
-                return;
-            }
-
-            keys.pk.a[i] = serialize(a0^x_power);
-            keys.pk.tilde_a[i] = serialize(tiled_g^x_power);
-            self(x_power * x_prime, i + 1uz);
-        }(make_Zp(1u));
+            const auto& power = *x_power;
+            keys.pk.a[i] = serialize(a0^power);
+            keys.pk.tilde_a[i] = serialize(tiled_g^power);
+            x_power.emplace((power * x_prime).normalize());
+        }
 
         return keys;
     }
